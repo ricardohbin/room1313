@@ -62,8 +62,18 @@ audio by ear, Escape-to-skip.
 - **Deck** (`src/cards.rs`): six characters (hotel owner Mr. Ostrowski, tabloid
   reporter Vera Kask, occultist Ambrose Quill, conspiracist Dale Pruitt,
   fanatic Brother Josiah, the Agent), each card `Summoned` (testimony) or
-  `Unannounced`. Round one meets everyone once, round two loops forever.
+  `Unannounced`. Reporter, Pruitt and Josiah are recurring (`Character::recurring`);
+  the owner, Quill and the Agent are unique: each of their cards shows once.
   Cards don't vary by attribute state yet.
+- **Inventory and draws** (added 2026-10-13): `Item` (e-reader, key to 1313,
+  negatives, tapes, amulet, agent's card) in `cards.rs`; `Inventory` bitset in
+  `engine.rs`. A card `requires` items; a choice `gives`/`takes` them. After the
+  fixed first card, the next is drawn at random (seeded xorshift, seed from
+  `Math.random` in `lib.rs`) from the unspent cards whose items you hold, never
+  the same card twice in a row unless nothing else fits. `Engine::new` rejects a
+  deck without a recurring, item-free card, so draws can't run dry. The HUD
+  shows held items along the bottom (`art/icons.rs`); dragging shows "+ item /
+  - item" under the choice and marks items that would be taken.
 - **Portraits** (`src/art/portraits.rs`): one still 96x96 pixel-art bust per
   character with the `Pen`, painted when the card is dealt. The card is an
   evidence photo: portrait, role strip, red arrival stamp.
@@ -78,20 +88,19 @@ audio by ear, Escape-to-skip.
   The DOM is built and driven from Rust via `web-sys`.
 - **Pure core, thin browser layer.** `engine.rs` and `swipe.rs` have no browser
   dependencies, so they're tested with plain `cargo test`. Only `view.rs` touches the DOM.
-- **The scene graph is validated once on load** (duplicate ids, missing start
-  scene, choices pointing to missing scenes). After that, `Engine::choose` can't fail.
-- **The engine records history** as `Vec<(scene_id, Side)>`. It isn't used yet;
-  it's there for future game state and conditions.
+- **The deck is validated once on load** (duplicate ids, missing start card,
+  no fallback card). After that, `Engine::choose` can't fail.
+- **The engine records history** as `Vec<(scene_id, Side)>`. It isn't used yet.
 - **One card element is reused** for every scene (content swapped, CSS classes
   toggled), so event listeners are attached only once.
 - Crate type is `cdylib` (for wasm) plus `rlib` (for native tests).
 
 ## Files
 
-- `src/engine.rs`: `Scene { id, who, arrival, text, left, right }`, `Choice { label, next, effect }`, `Stat`, `Stats`, `Effect`, `Condition`, `Engine`, `EngineError`
+- `src/engine.rs`: `Scene { id, who, arrival, text, left, right }`, `Choice { label, effect, gives, takes }`, `Scene.requires`, `Stat`, `Stats`, `Effect`, `Inventory`, `Condition`, `Engine` (random draws), `EngineError`
 - `src/swipe.rs`: `SwipeConfig` (threshold, rotation, vertical damping), `Drag`
 - `src/view.rs`: DOM, pointer handlers, `commit()` animation sequence
-- `src/cards.rs`: `Character`, `Arrival`, the deck
+- `src/cards.rs`: `Character`, `Arrival`, `Item`, `START_ITEMS`, the deck
 - `src/splash.rs`: title screen; `src/cinematic.rs`, `src/intro.rs`, `src/endings.rs`, `src/art/`, `src/audio/`: cinematics and sound (see CINEMATICS.md)
 - `src/lib.rs`: `#[wasm_bindgen(start)]` entry point (splash → intro → view)
 - `www/index.html`, `www/style.css`; `www/pkg/` is generated (gitignored)

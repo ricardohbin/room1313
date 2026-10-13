@@ -8,8 +8,9 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, EventTarget, HtmlElement, PointerEvent};
 
-use crate::art::{stat_icon, Portrait};
-use crate::engine::{Condition, Engine, Extreme, Side, Stat, Stats, STAT_START};
+use crate::art::{item_icon, stat_icon, Portrait};
+use crate::cards::Item;
+use crate::engine::{Choice, Condition, Engine, Extreme, Inventory, Side, Stat, Stats, STAT_START};
 use crate::swipe::{Drag, SwipeConfig};
 
 /// Must match the `.card` transition duration in style.css.
@@ -34,8 +35,12 @@ struct Ui {
     role: HtmlElement,
     stamp: HtmlElement,
     hint: HtmlElement,
+    hint_label: HtmlElement,
+    hint_items: HtmlElement,
     speaker: HtmlElement,
     gauges: Vec<Gauge>,
+    /// One slot per item, shown while you hold it.
+    slots: Vec<(Item, HtmlElement)>,
 }
 
 struct App {
@@ -71,6 +76,7 @@ pub fn mount(engine: Engine, root_id: &str, on_loss: impl FnOnce(Stat, Extreme) 
         let app = app.borrow();
         app.render_scene();
         app.render_stats(app.engine.stats(), None);
+        app.render_inventory(app.engine.inventory(), None);
     }
 
     let card: EventTarget = app.borrow().ui.card.clone().into();
@@ -122,7 +128,26 @@ impl Ui {
         let role = el(doc, "p", "card-role")?;
         let stamp = el(doc, "div", "card-stamp")?;
         let hint = el(doc, "div", "card-hint")?;
+        let hint_label = el(doc, "p", "card-hint-label")?;
+        let hint_items = el(doc, "p", "card-hint-items")?;
+        hint.append_child(&hint_label)?;
+        hint.append_child(&hint_items)?;
         let speaker = el(doc, "p", "speaker")?;
+
+        let inventory = el(doc, "div", "inventory")?;
+        let mut slots = Vec::with_capacity(Item::ALL.len());
+        for item in Item::ALL {
+            let slot = el(doc, "div", "slot")?;
+            slot.set_title(item.name());
+            let icon = item_icon(doc, item)?;
+            icon.set_class_name("slot-icon");
+            let name = el(doc, "span", "slot-name")?;
+            name.set_text_content(Some(item.name()));
+            slot.append_child(&icon)?;
+            slot.append_child(&name)?;
+            inventory.append_child(&slot)?;
+            slots.push((item, slot));
+        }
 
         card.append_child(&canvas)?;
         card.append_child(&role)?;
@@ -133,11 +158,12 @@ impl Ui {
         stage.append_child(&speaker)?;
         game.append_child(&hud)?;
         game.append_child(&stage)?;
+        game.append_child(&inventory)?;
         let grain = el(doc, "div", "cine-grain")?;
         game.append_child(&grain)?;
         root.append_child(&game)?;
 
-        Ok(Self { text, card, portrait, role, stamp, hint, speaker, gauges })
+        Ok(Self { text, card, portrait, role, stamp, hint, hint_label, hint_items, speaker, gauges, slots })
     }
 }
 
@@ -189,21 +215,34 @@ impl App {
         }
     }
 
+    /// Shows the items you hold. With `preview`, marks the ones that choice would take.
+    fn render_inventory(&self, inv: Inventory, preview: Option<&Choice>) {
+        for (item, slot) in &self.ui.slots {
+            let classes = slot.class_list();
+            let _ = classes.toggle_with_force("held", inv.has(*item));
+            let taken = preview.is_some_and(|c| c.takes.contains(item) && inv.has(*item));
+            let _ = classes.toggle_with_force("taken", taken);
+        }
+    }
+
     fn set_hint(&self, leaning: Option<(Side, f64)>) {
         let hint = &self.ui.hint;
         let classes = hint.class_list();
         let _ = classes.remove_2("left", "right");
         match leaning {
             Some((side, strength)) => {
-                let label = &self.engine.current().choice(side).label;
-                hint.set_text_content(Some(label));
+                let choice = self.engine.current().choice(side);
+                self.ui.hint_label.set_text_content(Some(&choice.label));
+                self.ui.hint_items.set_text_content(Some(&item_changes(choice, self.engine.inventory())));
                 let _ = classes.add_1(side_class(side));
                 set_style(hint, "opacity", &strength.to_string());
                 self.render_stats(self.engine.stats(), Some((self.engine.preview(side), strength)));
+                self.render_inventory(self.engine.inventory(), Some(choice));
             }
             None => {
                 set_style(hint, "opacity", "0");
                 self.render_stats(self.engine.stats(), None);
+                self.render_inventory(self.engine.inventory(), None);
             }
         }
     }
@@ -215,6 +254,13 @@ impl App {
             &format!("translate({dx}px, {dy}px) rotate({rotation}deg)"),
         );
     }
+}
+
+/// "+ Key to 1313, - The e-reader": what a choice would actually change in your hands.
+fn item_changes(choice: &Choice, inv: Inventory) -> String {
+    let gained = choice.gives.iter().filter(|&&i| !inv.has(i)).map(|i| format!("+ {}", i.name()));
+    let lost = choice.takes.iter().filter(|&&i| inv.has(i)).map(|i| format!("- {}", i.name()));
+    gained.chain(lost).collect::<Vec<_>>().join(", ")
 }
 
 /// One arrow per step of size: small (≤5), medium (≤10), large.
@@ -281,18 +327,21 @@ fn commit(app: &Shared, side: Side) {
         let off_screen = window().inner_width().ok().and_then(|w| w.as_f64()).unwrap_or(1000.0);
         a.place_card(dir * off_screen, 0.0, dir * FLY_OUT_ROTATION_DEG);
 
-        let before = a.engine.stats();
+        let (before, held) = (a.engine.stats(), a.engine.inventory());
         a.engine.choose(side);
-        let after = a.engine.stats();
+        let (after, inv) = (a.engine.stats(), a.engine.inventory());
         set_style(&a.ui.hint, "opacity", "0");
         a.render_stats(after, None);
+        a.render_inventory(inv, None);
+        // Restart the pulse on the gauges that moved and the items just gained.
         for (g, &stat) in a.ui.gauges.iter().zip(&Stat::ALL) {
             if before.get(stat) != after.get(stat) {
-                // Restart the pulse animation on the gauges that moved.
-                let classes = g.root.class_list();
-                let _ = classes.remove_1("moved");
-                let _ = g.root.offset_width();
-                let _ = classes.add_1("moved");
+                restart_animation(&g.root, "moved");
+            }
+        }
+        for (item, slot) in &a.ui.slots {
+            if inv.has(*item) && !held.has(*item) {
+                restart_animation(slot, "new");
             }
         }
         after.extreme()
@@ -323,6 +372,14 @@ fn commit(app: &Shared, side: Side) {
         let _ = card.class_list().remove_1("entering");
         a.busy = false;
     });
+}
+
+/// Removes and re-adds `class`, so its CSS animation plays again.
+fn restart_animation(node: &HtmlElement, class: &str) {
+    let classes = node.class_list();
+    let _ = classes.remove_1(class);
+    let _ = node.offset_width();
+    let _ = classes.add_1(class);
 }
 
 fn side_class(side: Side) -> &'static str {

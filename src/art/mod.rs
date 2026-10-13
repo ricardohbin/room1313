@@ -7,6 +7,7 @@
 
 mod endings;
 mod intro;
+mod icons;
 mod portraits;
 
 use std::f64::consts::TAU;
@@ -17,7 +18,8 @@ use web_sys::{CanvasRenderingContext2d, Document, HtmlCanvasElement};
 
 pub use endings::*;
 pub use intro::{spark, LIGHTNING};
-pub use portraits::{stat_icon, Portrait};
+pub use icons::{item_icon, stat_icon};
+pub use portraits::Portrait;
 
 pub const W: f64 = 240.0;
 pub const H: f64 = 135.0;

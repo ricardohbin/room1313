@@ -1,13 +1,12 @@
 //! The card portraits: one still, bust-length picture per character, in the
 //! cinematics' style (near-black rooms, one light source, a rim of light
-//! so nobody disappears into the dark). Also the HUD's attribute icons.
+//! so nobody disappears into the dark). Icons live in `icons`.
 //!
 //! Portraits are S×S. The sitter faces us, centred on `CX`; most are lit
 //! from one side, so every shape gets a shadow side and a lit rim.
 
 use super::*;
 use crate::cards::Character;
-use crate::engine::Stat;
 
 /// Portrait size in pixels (the card scales it up, pixelated).
 const S: f64 = 96.0;
@@ -633,53 +632,3 @@ fn agent(p: &Pen) {
     p.rect(26.0, 76.0, 3.0, 5.0, skin.base);
 }
 
-// ---------- HUD icons ----------
-
-/// A 9×9 icon for an attribute: badge, eye, heart.
-pub fn stat_icon(doc: &Document, stat: Stat) -> Result<HtmlCanvasElement, JsValue> {
-    let rows: [&str; 9] = match stat {
-        Stat::Reputation => [
-            "....#....",
-            "....#....",
-            "...###...",
-            "#########",
-            ".#######.",
-            "..#####..",
-            "..##.##..",
-            ".##...##.",
-            "##.....##",
-        ],
-        Stat::Sensitivity => [
-            ".........",
-            "..#####..",
-            ".#.....#.",
-            "#..###..#",
-            "#..#.#..#",
-            "#..###..#",
-            ".#.....#.",
-            "..#####..",
-            ".........",
-        ],
-        Stat::Arousal => [
-            ".##...##.",
-            "####.####",
-            "#########",
-            "#########",
-            ".#######.",
-            "..#####..",
-            "...###...",
-            "....#....",
-            ".........",
-        ],
-    };
-    let pen = Pen::sized(doc, 9.0, 9.0)?;
-    pen.ink("#cfc4b6");
-    for (y, row) in rows.iter().enumerate() {
-        for (x, b) in row.bytes().enumerate() {
-            if b == b'#' {
-                pen.dot(x as f64, y as f64);
-            }
-        }
-    }
-    Ok(pen.canvas)
-}

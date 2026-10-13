@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::fmt;
 
-use crate::cards::{Arrival, Character};
+use crate::cards::{Arrival, Character, Item};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Side {
@@ -111,11 +110,74 @@ impl Effect {
     }
 }
 
+/// The items the detective holds: a set of `Item`s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Inventory(u32);
+
+impl Inventory {
+    pub fn of(items: &[Item]) -> Self {
+        let mut inv = Self::default();
+        for &item in items {
+            inv.add(item);
+        }
+        inv
+    }
+
+    pub fn has(&self, item: Item) -> bool {
+        self.0 & (1 << item as u32) != 0
+    }
+
+    pub fn has_all(&self, items: &[Item]) -> bool {
+        items.iter().all(|&i| self.has(i))
+    }
+
+    pub fn add(&mut self, item: Item) {
+        self.0 |= 1 << item as u32;
+    }
+
+    pub fn remove(&mut self, item: Item) {
+        self.0 &= !(1 << item as u32);
+    }
+
+    pub fn items(self) -> impl Iterator<Item = Item> {
+        Item::ALL.into_iter().filter(move |&i| self.has(i))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Choice {
     pub label: String,
-    pub next: String,
     pub effect: Effect,
+    /// Items you get, and items you lose, by making this choice.
+    pub gives: Vec<Item>,
+    pub takes: Vec<Item>,
+}
+
+impl Choice {
+    pub fn new(label: &str, effect: Effect) -> Self {
+        Self { label: label.into(), effect, gives: Vec::new(), takes: Vec::new() }
+    }
+
+    pub fn gives(mut self, item: Item) -> Self {
+        self.gives.push(item);
+        self
+    }
+
+    pub fn takes(mut self, item: Item) -> Self {
+        self.takes.push(item);
+        self
+    }
+
+    /// The inventory after this choice.
+    pub fn apply(&self, mut inv: Inventory) -> Inventory {
+        for &item in &self.takes {
+            inv.remove(item);
+        }
+        for &item in &self.gives {
+            inv.add(item);
+        }
+        inv
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +186,8 @@ pub struct Scene {
     pub who: Character,
     pub arrival: Arrival,
     pub text: String,
+    /// The card can only be drawn while you hold all of these.
+    pub requires: Vec<Item>,
     pub left: Choice,
     pub right: Choice,
 }
@@ -135,13 +199,24 @@ impl Scene {
             Side::Right => &self.right,
         }
     }
+
+    pub fn requires(mut self, item: Item) -> Self {
+        self.requires.push(item);
+        self
+    }
+
+    /// Cards of recurring characters can come back; the others show only once.
+    pub fn once(&self) -> bool {
+        !self.who.recurring()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum EngineError {
     DuplicateScene(String),
     UnknownStart(String),
-    DanglingChoice { scene: String, target: String },
+    /// Without a recurring card that needs no items, the deck could run dry.
+    NoFallback,
 }
 
 impl fmt::Display for EngineError {
@@ -149,60 +224,70 @@ impl fmt::Display for EngineError {
         match self {
             Self::DuplicateScene(id) => write!(f, "duplicate scene id `{id}`"),
             Self::UnknownStart(id) => write!(f, "start scene `{id}` does not exist"),
-            Self::DanglingChoice { scene, target } => {
-                write!(f, "scene `{scene}` points to missing scene `{target}`")
-            }
+            Self::NoFallback => write!(f, "the deck needs a recurring card that requires no items"),
         }
     }
 }
 
 impl std::error::Error for EngineError {}
 
-/// Holds the scene graph, the player's position in it and the detective's attributes.
-/// The graph is validated up front, so navigation can never fail.
+/// Small deterministic RNG (xorshift64*), so the engine stays pure and testable.
+struct Rng(u64);
+
+impl Rng {
+    fn new(seed: u64) -> Self {
+        Self((seed ^ 0x9E37_79B9_7F4A_7C15) | 1)
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        (self.0.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 33) as usize % n
+    }
+}
+
+/// Holds the deck, the card on the table, the detective's attributes and inventory.
+/// After the first card, each card is drawn at random from those the inventory allows.
 pub struct Engine {
-    scenes: HashMap<String, Scene>,
-    current: String,
+    scenes: Vec<Scene>,
+    current: usize,
+    /// Cards that showed once and can't come back.
+    spent: Vec<bool>,
     stats: Stats,
+    inventory: Inventory,
+    rng: Rng,
     history: Vec<(String, Side)>,
 }
 
 impl Engine {
-    pub fn new(scenes: Vec<Scene>, start: &str) -> Result<Self, EngineError> {
-        let mut map = HashMap::with_capacity(scenes.len());
-        for scene in scenes {
-            if map.contains_key(&scene.id) {
-                return Err(EngineError::DuplicateScene(scene.id));
-            }
-            map.insert(scene.id.clone(), scene);
-        }
-        if !map.contains_key(start) {
-            return Err(EngineError::UnknownStart(start.to_string()));
-        }
-        for scene in map.values() {
-            for choice in [&scene.left, &scene.right] {
-                if !map.contains_key(&choice.next) {
-                    return Err(EngineError::DanglingChoice {
-                        scene: scene.id.clone(),
-                        target: choice.next.clone(),
-                    });
-                }
+    pub fn new(scenes: Vec<Scene>, start: &str, inventory: Inventory, seed: u64) -> Result<Self, EngineError> {
+        for (i, scene) in scenes.iter().enumerate() {
+            if scenes[..i].iter().any(|s| s.id == scene.id) {
+                return Err(EngineError::DuplicateScene(scene.id.clone()));
             }
         }
-        Ok(Self {
-            scenes: map,
-            current: start.to_string(),
-            stats: Stats::default(),
-            history: Vec::new(),
-        })
+        let current = scenes
+            .iter()
+            .position(|s| s.id == start)
+            .ok_or_else(|| EngineError::UnknownStart(start.to_string()))?;
+        if !scenes.iter().any(|s| !s.once() && s.requires.is_empty()) {
+            return Err(EngineError::NoFallback);
+        }
+        let spent = vec![false; scenes.len()];
+        Ok(Self { scenes, current, spent, stats: Stats::default(), inventory, rng: Rng::new(seed), history: Vec::new() })
     }
 
     pub fn current(&self) -> &Scene {
-        &self.scenes[&self.current]
+        &self.scenes[self.current]
     }
 
     pub fn stats(&self) -> Stats {
         self.stats
+    }
+
+    pub fn inventory(&self) -> Inventory {
+        self.inventory
     }
 
     /// The attributes as they would be after choosing `side` on the current scene.
@@ -210,13 +295,36 @@ impl Engine {
         self.stats.apply(self.current().choice(side).effect)
     }
 
-    /// Applies a choice on the current scene and moves to the next one.
+    /// Applies a choice on the current scene, then draws the next one.
     pub fn choose(&mut self, side: Side) -> &Scene {
-        self.stats = self.preview(side);
-        let next = self.current().choice(side).next.clone();
-        let from = std::mem::replace(&mut self.current, next);
-        self.history.push((from, side));
+        let choice = self.current().choice(side);
+        let (stats, inventory) = (self.stats.apply(choice.effect), choice.apply(self.inventory));
+        (self.stats, self.inventory) = (stats, inventory);
+        self.history.push((self.current().id.clone(), side));
+        if self.current().once() {
+            self.spent[self.current] = true;
+        }
+        self.current = self.draw();
         self.current()
+    }
+
+    /// Cards that could be drawn now: not spent, and their items are in hand.
+    pub fn available(&self) -> impl Iterator<Item = &Scene> {
+        (0..self.scenes.len()).filter(|&i| self.can_draw(i)).map(|i| &self.scenes[i])
+    }
+
+    fn can_draw(&self, i: usize) -> bool {
+        !self.spent[i] && self.inventory.has_all(&self.scenes[i].requires)
+    }
+
+    /// A random available card, other than the one just played if there's a choice.
+    /// `new` checked there's a recurring card needing nothing, so this can't come up empty.
+    fn draw(&mut self) -> usize {
+        let mut pool: Vec<usize> = (0..self.scenes.len()).filter(|&i| i != self.current && self.can_draw(i)).collect();
+        if pool.is_empty() {
+            pool.push(self.current);
+        }
+        pool[self.rng.below(pool.len())]
     }
 
     pub fn history(&self) -> &[(String, Side)] {
@@ -228,28 +336,24 @@ impl Engine {
 mod tests {
     use super::*;
 
-    fn scene(id: &str, left: &str, right: &str) -> Scene {
+    fn scene(id: &str, who: Character) -> Scene {
         Scene {
             id: id.into(),
-            who: Character::HotelOwner,
+            who,
             arrival: Arrival::Summoned,
             text: "x".into(),
-            left: Choice { label: "no".into(), next: left.into(), effect: Effect::new(-30, 0, 0) },
-            right: Choice { label: "yes".into(), next: right.into(), effect: Effect::new(0, 20, -5) },
+            requires: Vec::new(),
+            left: Choice::new("no", Effect::new(-30, 0, 0)),
+            right: Choice::new("yes", Effect::new(0, 20, -5)),
         }
     }
 
-    #[test]
-    fn navigates_and_records_history() {
-        let mut e = Engine::new(vec![scene("a", "b", "c"), scene("b", "a", "a"), scene("c", "a", "a")], "a").unwrap();
-        assert_eq!(e.choose(Side::Right).id, "c");
-        assert_eq!(e.choose(Side::Left).id, "a");
-        assert_eq!(e.history(), &[("a".into(), Side::Right), ("c".into(), Side::Left)]);
-    }
+    const RECURRING: Character = Character::Reporter;
+    const UNIQUE: Character = Character::Agent;
 
     #[test]
     fn choices_shift_and_clamp_attributes() {
-        let mut e = Engine::new(vec![scene("a", "a", "a")], "a").unwrap();
+        let mut e = Engine::new(vec![scene("a", RECURRING)], "a", Inventory::default(), 1).unwrap();
         assert_eq!(e.preview(Side::Right), Stats::new(50, 70, 45));
         assert_eq!(e.stats(), Stats::default(), "a preview doesn't commit");
         e.choose(Side::Right);
@@ -259,8 +363,47 @@ mod tests {
         e.choose(Side::Left);
         assert_eq!(e.stats(), Stats::new(0, 70, 45));
         assert_eq!(e.stats().extreme(), Some((Stat::Reputation, Extreme::Low)));
+        assert_eq!(e.history().len(), 3);
         let high = Stats::new(50, 95, 50).apply(Effect::new(0, 20, 0));
         assert_eq!(high.extreme(), Some((Stat::Sensitivity, Extreme::High)));
+    }
+
+    #[test]
+    fn items_unlock_cards_and_choices_give_and_take_them() {
+        let mut start = scene("start", UNIQUE);
+        start.right = start.right.gives(Item::RoomKey).takes(Item::EReader);
+        let deck = vec![start, scene("filler", RECURRING), scene("locked", RECURRING).requires(Item::RoomKey)];
+        let mut e = Engine::new(deck, "start", Inventory::of(&[Item::EReader]), 7).unwrap();
+        assert!(e.available().all(|s| s.id != "locked"));
+        e.choose(Side::Right);
+        assert!(e.inventory().has(Item::RoomKey));
+        assert!(!e.inventory().has(Item::EReader));
+        assert!(e.available().any(|s| s.id == "locked"));
+    }
+
+    #[test]
+    fn unique_cards_show_once_and_draws_vary() {
+        let deck = vec![scene("u1", UNIQUE), scene("u2", UNIQUE), scene("r1", RECURRING), scene("r2", RECURRING)];
+        let mut e = Engine::new(deck, "u1", Inventory::default(), 42).unwrap();
+        let mut seen = Vec::new();
+        for _ in 0..200 {
+            seen.push(e.current().id.clone());
+            e.choose(Side::Right);
+        }
+        assert_eq!(seen.iter().filter(|id| *id == "u1").count(), 1);
+        assert!(seen.iter().filter(|id| *id == "u2").count() <= 1);
+        assert!(seen.windows(2).all(|w| w[0] != w[1]), "never the same card twice in a row");
+        assert!(seen.iter().any(|id| id == "r1") && seen.iter().any(|id| id == "r2"));
+    }
+
+    #[test]
+    fn same_seed_same_game() {
+        let play = |seed| {
+            let deck = vec![scene("a", RECURRING), scene("b", RECURRING), scene("c", RECURRING)];
+            let mut e = Engine::new(deck, "a", Inventory::default(), seed).unwrap();
+            (0..20).map(|_| e.choose(Side::Left).id.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(play(3), play(3));
     }
 
     #[test]
@@ -272,27 +415,35 @@ mod tests {
     }
 
     #[test]
-    fn the_deck_is_a_valid_graph_with_everyone_in_it() {
-        let deck = crate::cards::deck();
-        assert!(Engine::new(deck.clone(), crate::cards::START).is_ok());
-        for who in Character::ALL {
-            assert!(deck.iter().any(|s| s.who == who), "{who:?} has no card");
-        }
-    }
-
-    #[test]
-    fn rejects_invalid_graphs() {
+    fn rejects_invalid_decks() {
+        let inv = Inventory::default();
         assert_eq!(
-            Engine::new(vec![scene("a", "a", "a")], "z").err(),
+            Engine::new(vec![scene("a", RECURRING)], "z", inv, 0).err(),
             Some(EngineError::UnknownStart("z".into()))
         );
         assert_eq!(
-            Engine::new(vec![scene("a", "a", "a"), scene("a", "a", "a")], "a").err(),
+            Engine::new(vec![scene("a", RECURRING), scene("a", RECURRING)], "a", inv, 0).err(),
             Some(EngineError::DuplicateScene("a".into()))
         );
+        let locked = scene("b", RECURRING).requires(Item::Negatives);
         assert_eq!(
-            Engine::new(vec![scene("a", "a", "nope")], "a").err(),
-            Some(EngineError::DanglingChoice { scene: "a".into(), target: "nope".into() })
+            Engine::new(vec![scene("a", UNIQUE), locked], "a", inv, 0).err(),
+            Some(EngineError::NoFallback)
         );
+    }
+
+    #[test]
+    fn the_real_deck_is_valid_and_every_item_is_reachable() {
+        use crate::cards::{deck, START, START_ITEMS};
+        let deck = deck();
+        assert!(Engine::new(deck.clone(), START, Inventory::of(START_ITEMS), 0).is_ok());
+        for who in Character::ALL {
+            assert!(deck.iter().any(|s| s.who == who), "{who:?} has no card");
+        }
+        for item in Item::ALL {
+            let given = START_ITEMS.contains(&item)
+                || deck.iter().any(|s| s.left.gives.contains(&item) || s.right.gives.contains(&item));
+            assert!(given, "{item:?} can never be obtained");
+        }
     }
 }

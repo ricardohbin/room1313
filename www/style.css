@@ -249,9 +249,78 @@ html, body {
   pointer-events: none;
 }
 
+.card-hint p { margin: 0; }
+
+/* What the choice gives or takes away */
+.card-hint-items {
+  margin-top: 0.3em;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: #c8a040;
+}
+
 /* anchored to the trailing edge so the label stays on screen while dragging */
 .card-hint.left { text-align: right; }
 .card-hint.right { text-align: left; }
+
+/* Inventory along the bottom: one slot per item held. Fixed height, so the
+   card doesn't move when items come and go. */
+.inventory {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100vw);
+  min-height: 4.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 16px 1rem;
+}
+
+.slot {
+  display: none;
+  width: 5.5rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.slot.held { display: flex; }
+
+.slot-icon {
+  width: 36px;
+  height: 36px;
+  padding: 4px;
+  box-sizing: content-box;
+  border: 1px solid #2a2326;
+  background: #141013;
+  image-rendering: pixelated;
+}
+
+.slot-name {
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  color: #8c7f74;
+}
+
+/* Previewing a choice that would take this item away */
+.slot.taken .slot-icon {
+  border-color: #c0392b;
+  box-shadow: 0 0 10px rgba(200, 30, 20, 0.6);
+  opacity: 0.5;
+}
+
+.slot.taken .slot-name { color: #e0483a; text-decoration: line-through; }
+
+.slot.new { animation: gained 900ms ease-out; }
+
+@keyframes gained {
+  0% { transform: translateY(-14px); opacity: 0; filter: brightness(3); }
+  60% { transform: translateY(2px); opacity: 1; }
+  100% { transform: translateY(0); filter: brightness(1); }
+}
 
 .speaker {
   margin: 0;

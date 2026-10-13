@@ -25,13 +25,16 @@ mod view;
 use wasm_bindgen::prelude::*;
 
 use crate::endings::Ending;
-use crate::engine::Engine;
+use crate::engine::{Engine, Inventory};
 use crate::view::window;
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
-    let engine = Engine::new(cards::deck(), cards::START).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    // Each game draws its cards in a different order.
+    let seed = (js_sys::Math::random() * u64::MAX as f64) as u64;
+    let engine = Engine::new(cards::deck(), cards::START, Inventory::of(cards::START_ITEMS), seed)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
     // Preview an ending with `#ending=<name>` (see `Ending::name`): New Game plays it.
     // `#cards` skips the intro and deals straight away.
     let hash = window().location().hash().unwrap_or_default();
