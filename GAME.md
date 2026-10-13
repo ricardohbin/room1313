@@ -155,3 +155,13 @@ No established historical Gematria correspondence between 1313 and 358 is assume
 The numbers should function as **discoverable clues rather than explicit exposition**. Their significance emerges through documents, testimony, artifacts, and the detective's changing Sensitivity.
 
 The underlying horror comes from the possibility that salvation and damnation are not opposites, but different interpretations of the same supernatural event.
+
+
+
+## MAIN STORYLINE
+
+1. receive the broken tablet
+2. hear voices, see the other side
+3. talk to ocultist, hints he know someone relevant
+4. meets a secret society
+5. 

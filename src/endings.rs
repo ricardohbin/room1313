@@ -10,6 +10,7 @@
 use crate::art::*;
 use crate::audio::Score;
 use crate::cinematic::{self, crossed, Film, Scene};
+use crate::engine::{Extreme, Stat};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Ending {
@@ -40,6 +41,18 @@ impl Ending {
             Ending::Institutionalization => "institution",
             Ending::Coma => "coma",
             Ending::FatalOverload => "overload",
+        }
+    }
+
+    /// The ending for an attribute that hit one end of its scale.
+    pub fn of(stat: Stat, extreme: Extreme) -> Self {
+        match (stat, extreme) {
+            (Stat::Reputation, Extreme::Low) => Ending::Dismissal,
+            (Stat::Reputation, Extreme::High) => Ending::Assassination,
+            (Stat::Sensitivity, Extreme::Low) => Ending::FatalHaunting,
+            (Stat::Sensitivity, Extreme::High) => Ending::Institutionalization,
+            (Stat::Arousal, Extreme::Low) => Ending::Coma,
+            (Stat::Arousal, Extreme::High) => Ending::FatalOverload,
         }
     }
 

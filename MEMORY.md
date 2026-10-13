@@ -45,12 +45,32 @@ Full recipe and conventions: `CINEMATICS.md`.
   ending "What happened in room 1313?" (case number on the folder is 358).
 - **Endings** (`src/endings.rs`): six game-over films, one per attribute
   extreme in GAME.md, each with its own score (lament, thrash, psychobilly,
-  asylum, requiem, hardcore) and a closing document. Not wired to gameplay yet:
-  attributes don't exist in code. Preview with `#ending=<name>` + New Game;
+  asylum, requiem, hardcore) and a closing document. Played when an attribute hits 0 or 100
+  (`Ending::of`). Preview with `#ending=<name>` + New Game;
   an ending reloads back to the title.
 
 Verified by screenshots in headless Chrome (no console errors). Not verified:
 audio by ear, Escape-to-skip.
+
+## Cards (added 2026-10-13, draft)
+
+- **Attributes** live in `engine.rs`: `Stat` (Reputation, Sensitivity, Arousal),
+  `Stats` (start at 50, clamped 0..100), `Effect` per `Choice`, `Condition`
+  (GAME.md thresholds). `Engine::preview(side)` gives the stats a choice would
+  produce; `choose` applies it. 0 or 100 is a loss: `view` waits for the gauge,
+  then `lib.rs` plays `Ending::of(stat, extreme)`.
+- **Deck** (`src/cards.rs`): six characters (hotel owner Mr. Ostrowski, tabloid
+  reporter Vera Kask, occultist Ambrose Quill, conspiracist Dale Pruitt,
+  fanatic Brother Josiah, the Agent), each card `Summoned` (testimony) or
+  `Unannounced`. Round one meets everyone once, round two loops forever.
+  Cards don't vary by attribute state yet.
+- **Portraits** (`src/art/portraits.rs`): one still 96x96 pixel-art bust per
+  character with the `Pen`, painted when the card is dealt. The card is an
+  evidence photo: portrait, role strip, red arrival stamp.
+- **HUD**: a gauge per attribute (zones per GAME.md). While dragging, arrows
+  (1-3 by size, red if moving away from 50) and a ghost needle preview the
+  change; on release the needles move and jolt.
+- `#cards` skips the intro (after New Game).
 
 ## Architecture decisions
 
@@ -68,10 +88,10 @@ audio by ear, Escape-to-skip.
 
 ## Files
 
-- `src/engine.rs`: `Scene { id, speaker, text, left, right }`, `Choice { label, next }`, `Engine`, `EngineError`
+- `src/engine.rs`: `Scene { id, who, arrival, text, left, right }`, `Choice { label, next, effect }`, `Stat`, `Stats`, `Effect`, `Condition`, `Engine`, `EngineError`
 - `src/swipe.rs`: `SwipeConfig` (threshold, rotation, vertical damping), `Drag`
 - `src/view.rs`: DOM, pointer handlers, `commit()` animation sequence
-- `src/demo.rs`: 4 hard-coded placeholder scenes (intro, riot, feast, war)
+- `src/cards.rs`: `Character`, `Arrival`, the deck
 - `src/splash.rs`: title screen; `src/cinematic.rs`, `src/intro.rs`, `src/endings.rs`, `src/art/`, `src/audio/`: cinematics and sound (see CINEMATICS.md)
 - `src/lib.rs`: `#[wasm_bindgen(start)]` entry point (splash → intro → view)
 - `www/index.html`, `www/style.css`; `www/pkg/` is generated (gitignored)
@@ -86,15 +106,17 @@ audio by ear, Escape-to-skip.
 - `wasm-pack` was installed with `cargo install wasm-pack` (v0.15.0).
 - Build: `wasm-pack build --target web --out-dir www/pkg --no-pack`
 - Serve: `python3 -m http.server 8765 -d www`
+- If `wasm-pack` isn't on PATH, its cached `wasm-bindgen` works: `cargo build --release
+  --target wasm32-unknown-unknown`, then `~/AppData/Local/.wasm-pack/wasm-bindgen-*/wasm-bindgen
+  --target web --out-dir www/pkg target/wasm32-unknown-unknown/release/swipe_engine.wasm`.
 - Browser testing approach that worked: headless Chrome with
   `--remote-debugging-port`, driven over CDP from a Node script, using
   `Input.dispatchMouseEvent` to simulate drags.
 
-## Next steps (agreed to postpone; not started)
+## Next steps
 
-1. **Event/scene format.** Load scenes from data (JSON or RON?) instead of
-   `demo.rs`. Format not decided yet.
-2. **Story/history design.** The narrative itself and how events chain together.
-3. Likely after that: Reigns-style game state (e.g. 4 stats changed by each
-   choice), choices that only appear under certain conditions, and game over / endings.
-4. Polish ideas: real portraits instead of the speaker's first letter, arrow-key input.
+1. **Event/scene format.** Load the deck from data (JSON or RON?) instead of
+   `cards.rs`. Format not decided yet.
+2. **Story/history design.** More cards, and cards chosen by attribute state
+   (GAME.md "Card & Narrative Integration") instead of a fixed loop.
+3. Polish ideas: arrow-key input, a card-game ambience, sounds on swipe.

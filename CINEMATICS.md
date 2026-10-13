@@ -40,9 +40,9 @@ caption ends with the name of the loss in red.
 | Arousal low | `Coma` | You sway in the bullpen as your vision closes in, collapse, officers rush over → hospital bed, heart monitor, empty chair → *PATIENT IN COMA* | `Requiem`: piano and strings, A minor with a dramatic E major |
 | Arousal high | `FatalOverload` | Home alone, hand on the wall, heart racing (the screen shakes and flushes red on each beat) until you fall, and **the music stops dead** → the same room, still; the phone rings and rings → coroner's *CARDIAC ARREST*, stamped DECEASED | `Hardcore`: d-beat, power chords on every 8th, 210 bpm |
 
-Endings aren't triggered by the game yet (attributes don't exist in the code).
-The game will call `endings::play(Ending::X, "app", on_done)`; for now an ending
-ends by reloading back to the title screen.
+The card game plays an ending when an attribute reaches 0 or 100
+(`Ending::of(stat, extreme)` in `src/lib.rs`). An ending reloads back to the
+title screen.
 
 **Preview an ending:** open `http://localhost:8765/#ending=<name>` and pick New
 Game. Names: `dismissal`, `assassination`, `haunting`, `institution`, `coma`,

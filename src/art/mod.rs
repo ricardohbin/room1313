@@ -7,6 +7,7 @@
 
 mod endings;
 mod intro;
+mod portraits;
 
 use std::f64::consts::TAU;
 
@@ -16,6 +17,7 @@ use web_sys::{CanvasRenderingContext2d, Document, HtmlCanvasElement};
 
 pub use endings::*;
 pub use intro::{spark, LIGHTNING};
+pub use portraits::{stat_icon, Portrait};
 
 pub const W: f64 = 240.0;
 pub const H: f64 = 135.0;
@@ -102,9 +104,13 @@ struct Pen {
 
 impl Pen {
     fn new(doc: &Document) -> Result<Self, JsValue> {
+        Self::sized(doc, W, H)
+    }
+
+    fn sized(doc: &Document, w: f64, h: f64) -> Result<Self, JsValue> {
         let canvas = doc.create_element("canvas")?.dyn_into::<HtmlCanvasElement>()?;
-        canvas.set_width(W as u32);
-        canvas.set_height(H as u32);
+        canvas.set_width(w as u32);
+        canvas.set_height(h as u32);
         let ctx = canvas
             .get_context("2d")?
             .ok_or("no 2d context")?

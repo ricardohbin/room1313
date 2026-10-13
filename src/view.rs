@@ -1,5 +1,5 @@
-//! Browser binding: builds the card DOM, handles pointer drags and
-//! plays the fly-out / enter transitions between scenes.
+//! Browser binding: builds the card DOM and the attribute HUD, handles
+//! pointer drags and plays the fly-out / enter transitions between scenes.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -8,19 +8,34 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, EventTarget, HtmlElement, PointerEvent};
 
-use crate::engine::{Engine, Side};
+use crate::art::{stat_icon, Portrait};
+use crate::engine::{Condition, Engine, Extreme, Side, Stat, Stats, STAT_START};
 use crate::swipe::{Drag, SwipeConfig};
 
 /// Must match the `.card` transition duration in style.css.
 const TRANSITION_MS: i32 = 300;
 const FLY_OUT_ROTATION_DEG: f64 = 30.0;
+/// After the losing choice: let the gauge settle on the extreme before the ending.
+const LOSS_PAUSE_MS: i32 = 1600;
+
+type OnLoss = Box<dyn FnOnce(Stat, Extreme)>;
+
+struct Gauge {
+    root: HtmlElement,
+    delta: HtmlElement,
+    needle: HtmlElement,
+    ghost: HtmlElement,
+}
 
 struct Ui {
     text: HtmlElement,
     card: HtmlElement,
-    portrait: HtmlElement,
+    portrait: Portrait,
+    role: HtmlElement,
+    stamp: HtmlElement,
     hint: HtmlElement,
     speaker: HtmlElement,
+    gauges: Vec<Gauge>,
 }
 
 struct App {
@@ -30,11 +45,14 @@ struct App {
     drag: Option<Drag>,
     /// True while a choice is animating; input is ignored.
     busy: bool,
+    on_loss: Option<OnLoss>,
 }
 
 type Shared = Rc<RefCell<App>>;
 
-pub fn mount(engine: Engine, root_id: &str) -> Result<(), JsValue> {
+/// Deals the cards. When an attribute reaches either end of its scale,
+/// the game stops and `on_loss` is called with it.
+pub fn mount(engine: Engine, root_id: &str, on_loss: impl FnOnce(Stat, Extreme) + 'static) -> Result<(), JsValue> {
     let document = window().document().ok_or("no document")?;
     let root = document
         .get_element_by_id(root_id)
@@ -47,8 +65,13 @@ pub fn mount(engine: Engine, root_id: &str) -> Result<(), JsValue> {
         swipe: SwipeConfig::default(),
         drag: None,
         busy: false,
+        on_loss: Some(Box::new(on_loss)),
     }));
-    app.borrow().render_scene();
+    {
+        let app = app.borrow();
+        app.render_scene();
+        app.render_stats(app.engine.stats(), None);
+    }
 
     let card: EventTarget = app.borrow().ui.card.clone().into();
     listen(&card, "pointerdown", &app, on_pointer_down)?;
@@ -58,23 +81,63 @@ pub fn mount(engine: Engine, root_id: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
+impl Gauge {
+    fn build(doc: &Document, stat: Stat) -> Result<Self, JsValue> {
+        let root = el(doc, "div", "gauge")?;
+        let head = el(doc, "div", "gauge-head")?;
+        let icon = stat_icon(doc, stat)?;
+        icon.set_class_name("gauge-icon");
+        let name = el(doc, "span", "gauge-name")?;
+        name.set_text_content(Some(stat.name()));
+        let delta = el(doc, "span", "gauge-delta")?;
+        head.append_child(&icon)?;
+        head.append_child(&name)?;
+        head.append_child(&delta)?;
+
+        let track = el(doc, "div", "gauge-track")?;
+        let ghost = el(doc, "div", "gauge-ghost")?;
+        let needle = el(doc, "div", "gauge-needle")?;
+        track.append_child(&ghost)?;
+        track.append_child(&needle)?;
+        root.append_child(&head)?;
+        root.append_child(&track)?;
+        Ok(Self { root, delta, needle, ghost })
+    }
+}
+
 impl Ui {
     fn build(doc: &Document, root: &web_sys::Element) -> Result<Self, JsValue> {
+        let game = el(doc, "div", "game")?;
+        let hud = el(doc, "div", "hud")?;
+        let gauges = Stat::ALL.iter().map(|&s| Gauge::build(doc, s)).collect::<Result<Vec<_>, _>>()?;
+        for g in &gauges {
+            hud.append_child(&g.root)?;
+        }
+
         let stage = el(doc, "div", "stage")?;
         let text = el(doc, "p", "scene-text")?;
         let card = el(doc, "div", "card")?;
-        let portrait = el(doc, "div", "card-portrait")?;
+        let (portrait, canvas) = Portrait::new(doc)?;
+        canvas.set_class_name("card-portrait");
+        let role = el(doc, "p", "card-role")?;
+        let stamp = el(doc, "div", "card-stamp")?;
         let hint = el(doc, "div", "card-hint")?;
         let speaker = el(doc, "p", "speaker")?;
 
-        card.append_child(&portrait)?;
+        card.append_child(&canvas)?;
+        card.append_child(&role)?;
+        card.append_child(&stamp)?;
         card.append_child(&hint)?;
         stage.append_child(&text)?;
         stage.append_child(&card)?;
         stage.append_child(&speaker)?;
-        root.append_child(&stage)?;
+        game.append_child(&hud)?;
+        game.append_child(&stage)?;
+        let grain = el(doc, "div", "cine-grain")?;
+        game.append_child(&grain)?;
+        root.append_child(&game)?;
 
-        Ok(Self { text, card, portrait, hint, speaker })
+        Ok(Self { text, card, portrait, role, stamp, hint, speaker, gauges })
     }
 }
 
@@ -82,10 +145,48 @@ impl App {
     fn render_scene(&self) {
         let scene = self.engine.current();
         self.ui.text.set_text_content(Some(&scene.text));
-        self.ui.speaker.set_text_content(Some(&scene.speaker));
-        let initial = scene.speaker.chars().next().map(String::from).unwrap_or_default();
-        self.ui.portrait.set_text_content(Some(&initial));
+        self.ui.speaker.set_text_content(Some(scene.who.name()));
+        self.ui.role.set_text_content(Some(scene.who.role()));
+        self.ui.stamp.set_text_content(Some(scene.arrival.label()));
+        self.ui.portrait.paint(scene.who);
         self.set_hint(None);
+    }
+
+    /// Moves the needles to `stats`. With `preview`, also shows where a
+    /// choice would take each attribute, faded in by how far the card leans.
+    fn render_stats(&self, stats: Stats, preview: Option<(Stats, f64)>) {
+        for (g, &stat) in self.ui.gauges.iter().zip(&Stat::ALL) {
+            let now = stats.get(stat);
+            set_style(&g.needle, "left", &format!("{now}%"));
+            let classes = g.root.class_list();
+            let _ = classes.remove_3("unease", "crisis", "loss");
+            let condition = match Condition::of(now) {
+                Condition::Balanced => None,
+                Condition::Unease => Some("unease"),
+                Condition::Crisis => Some("crisis"),
+                Condition::Loss => Some("loss"),
+            };
+            if let Some(class) = condition {
+                let _ = classes.add_1(class);
+            }
+
+            let change = preview.map(|(next, k)| (next.get(stat), k)).filter(|&(next, _)| next != now);
+            match change {
+                Some((next, strength)) => {
+                    set_style(&g.ghost, "left", &format!("{next}%"));
+                    set_style(&g.ghost, "opacity", &strength.to_string());
+                    set_style(&g.delta, "opacity", &strength.to_string());
+                    g.delta.set_inner_html(&arrows(next - now));
+                    // Red when the choice pushes the attribute away from balance.
+                    let worse = (next - STAT_START).abs() > (now - STAT_START).abs();
+                    let _ = g.delta.class_list().toggle_with_force("worse", worse);
+                }
+                None => {
+                    set_style(&g.ghost, "opacity", "0");
+                    set_style(&g.delta, "opacity", "0");
+                }
+            }
+        }
     }
 
     fn set_hint(&self, leaning: Option<(Side, f64)>) {
@@ -98,8 +199,12 @@ impl App {
                 hint.set_text_content(Some(label));
                 let _ = classes.add_1(side_class(side));
                 set_style(hint, "opacity", &strength.to_string());
+                self.render_stats(self.engine.stats(), Some((self.engine.preview(side), strength)));
             }
-            None => set_style(hint, "opacity", "0"),
+            None => {
+                set_style(hint, "opacity", "0");
+                self.render_stats(self.engine.stats(), None);
+            }
         }
     }
 
@@ -110,6 +215,18 @@ impl App {
             &format!("translate({dx}px, {dy}px) rotate({rotation}deg)"),
         );
     }
+}
+
+/// One arrow per step of size: small (≤5), medium (≤10), large.
+fn arrows(delta: i32) -> String {
+    let n = match delta.abs() {
+        0 => 0,
+        1..=5 => 1,
+        6..=10 => 2,
+        _ => 3,
+    };
+    let dir = if delta > 0 { "up" } else { "down" };
+    format!("<i class=\"{dir}\"></i>").repeat(n)
 }
 
 fn on_pointer_down(app: &Shared, ev: PointerEvent) {
@@ -151,9 +268,10 @@ fn on_pointer_up(app: &Shared, _ev: PointerEvent) {
     }
 }
 
-/// Flies the card off-screen, then advances the engine and brings in the next scene.
+/// Applies the choice (the HUD moves right away), flies the card off-screen,
+/// then brings in the next scene, or hands over to the ending.
 fn commit(app: &Shared, side: Side) {
-    {
+    let loss = {
         let mut a = app.borrow_mut();
         a.busy = true;
         let dir = match side {
@@ -162,12 +280,38 @@ fn commit(app: &Shared, side: Side) {
         };
         let off_screen = window().inner_width().ok().and_then(|w| w.as_f64()).unwrap_or(1000.0);
         a.place_card(dir * off_screen, 0.0, dir * FLY_OUT_ROTATION_DEG);
+
+        let before = a.engine.stats();
+        a.engine.choose(side);
+        let after = a.engine.stats();
+        set_style(&a.ui.hint, "opacity", "0");
+        a.render_stats(after, None);
+        for (g, &stat) in a.ui.gauges.iter().zip(&Stat::ALL) {
+            if before.get(stat) != after.get(stat) {
+                // Restart the pulse animation on the gauges that moved.
+                let classes = g.root.class_list();
+                let _ = classes.remove_1("moved");
+                let _ = g.root.offset_width();
+                let _ = classes.add_1("moved");
+            }
+        }
+        after.extreme()
+    };
+
+    if let Some((stat, extreme)) = loss {
+        let app = app.clone();
+        after(LOSS_PAUSE_MS, move || {
+            let on_loss = app.borrow_mut().on_loss.take();
+            if let Some(on_loss) = on_loss {
+                on_loss(stat, extreme);
+            }
+        });
+        return;
     }
 
     let app = app.clone();
     after(TRANSITION_MS, move || {
         let mut a = app.borrow_mut();
-        a.engine.choose(side);
         a.render_scene();
 
         // Jump (no transition) to the "entering" pose, force a reflow,

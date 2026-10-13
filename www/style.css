@@ -10,7 +10,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #2b2420;
+  background: #0d0b0e;
   color: #f3e9dc;
   font-family: "Room 13", Georgia, "Times New Roman", serif;
 }
@@ -22,33 +22,167 @@ html, body {
   justify-content: center;
 }
 
-.stage {
-  width: min(360px, 90vw);
+/* ---------- Card game (src/view.rs) ---------- */
+
+.game {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 45%, #1d1719 0%, #0d0b0e 70%);
+  animation: fade-in 1.2s ease;
+}
+
+.game::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.8) 100%);
+}
+
+/* Attribute gauges along the top. Both ends of every scale kill you. */
+.hud {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100vw);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 16px 0;
+}
+
+.gauge {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gauge-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 1.2rem;
+  color: #8c7f74;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gauge-icon {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+  opacity: 0.7;
+}
+
+.gauge-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Arrows: one per step of change, red when it pushes away from balance */
+.gauge-delta {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  color: #cfc4b6;
+  opacity: 0;
+}
+
+.gauge-delta.worse { color: #e0483a; }
+
+.gauge-delta i {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.gauge-delta i.up { border-bottom: 7px solid currentColor; }
+.gauge-delta i.down { border-top: 7px solid currentColor; }
+
+/* Thresholds from GAME.md: crisis below 20 / above 80, unease below 40 / above 60 */
+.gauge-track {
+  position: relative;
+  height: 8px;
+  border: 1px solid #2a2326;
+  background: linear-gradient(to right,
+    #5a1612 0 20%, #2e1e1a 20% 40%, #1d1a1c 40% 60%, #2e1e1a 60% 80%, #5a1612 80% 100%);
+}
+
+.gauge-needle,
+.gauge-ghost {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1px;
+}
+
+.gauge-needle {
+  background: #f3e9dc;
+  box-shadow: 0 0 6px rgba(243, 233, 220, 0.6);
+  transition: left 700ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.gauge-ghost {
+  background: repeating-linear-gradient(#cfc4b6 0 2px, transparent 2px 4px);
+  opacity: 0;
+}
+
+.gauge.unease .gauge-name { color: #b08a60; }
+
+.gauge.crisis .gauge-name,
+.gauge.loss .gauge-name {
+  color: #e0483a;
+  text-shadow: 0 0 8px rgba(200, 30, 20, 0.7);
+  animation: flicker-idle 3s linear infinite;
+}
+
+.gauge.moved .gauge-track { animation: jolt 500ms ease-out; }
+
+.stage {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: min(340px, 90vw, 50vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
 }
 
 .scene-text {
-  min-height: 4.5em;
+  min-height: 4.2em;
   margin: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
   text-align: center;
-  font-size: 1.35rem;
+  font-size: clamp(1rem, 2.6vh, 1.25rem);
   line-height: 1.4;
   letter-spacing: 0.02em;
+  color: #cfc4b6;
 }
 
+/* The card is an evidence photo: the portrait, a strip with the role, a stamp */
 .card {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
-  border-radius: 12px;
-  background: #d9c3a0;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding: 6% 6% 0;
+  border-radius: 3px;
+  background: #cfc4b6;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   cursor: grab;
   user-select: none;
   touch-action: none; /* let pointer events handle touch drags */
@@ -68,26 +202,49 @@ html, body {
   opacity: 0;
 }
 
+/* 96×96 canvas scaled up without smoothing */
 .card-portrait {
-  width: 55%;
+  display: block;
+  width: 100%;
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: #8a6a4a;
-  color: #f3e9dc;
-  font-size: 5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.card-role {
+  margin: 0;
+  padding: 0.6em 0 0.8em;
+  text-align: center;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #3a2f28;
+  pointer-events: none;
+}
+
+.card-stamp {
+  position: absolute;
+  top: 9%;
+  right: 8%;
+  padding: 0.15em 0.5em;
+  border: 2px solid currentColor;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(200, 40, 30, 0.85);
+  background: rgba(207, 196, 182, 0.12);
+  transform: rotate(-8deg);
   pointer-events: none;
 }
 
 .card-hint {
   position: absolute;
   inset: 0 0 auto 0;
-  padding: 1rem 1.25rem;
-  border-radius: 12px 12px 0 0;
-  background: linear-gradient(rgba(0, 0, 0, 0.65), transparent);
-  font-size: 1.4rem;
+  padding: 1rem 1.25rem 2rem;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(rgba(0, 0, 0, 0.85), transparent);
+  font-size: 1.3rem;
   opacity: 0;
   pointer-events: none;
 }
@@ -102,6 +259,13 @@ html, body {
   letter-spacing: 0.05em;
   color: #c0392b;
   text-shadow: 0 0 12px rgba(200, 30, 20, 0.6);
+}
+
+@keyframes jolt {
+  0% { transform: translateX(0); filter: brightness(2); }
+  25% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+  100% { transform: translateX(0); filter: brightness(1); }
 }
 
 /* ---------- Title screen (src/splash.rs) ---------- */
@@ -333,8 +497,6 @@ html, body {
 
 .cine.leaving .cine-hint { opacity: 0; }
 
-/* The game fades in out of the black */
-.stage { animation: fade-in 1.2s ease; }
 
 @keyframes pulse {
   0%, 100% { opacity: 0.25; }
