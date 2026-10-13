@@ -1,2 +1,5 @@
 /target
 /www/pkg
+/design/font-draft/.venv
+.claude
+__pycache__/

@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Room 13";
+  src: url("fonts/room13.woff2") format("woff2");
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -6,7 +12,7 @@ html, body {
   overflow: hidden;
   background: #2b2420;
   color: #f3e9dc;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Room 13", Georgia, "Times New Roman", serif;
 }
 
 #app {
@@ -28,8 +34,9 @@ html, body {
   min-height: 4.5em;
   margin: 0;
   text-align: center;
-  font-size: 1.1rem;
-  line-height: 1.5;
+  font-size: 1.35rem;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
 }
 
 .card {
@@ -80,8 +87,7 @@ html, body {
   padding: 1rem 1.25rem;
   border-radius: 12px 12px 0 0;
   background: linear-gradient(rgba(0, 0, 0, 0.65), transparent);
-  font-size: 1.15rem;
-  font-weight: bold;
+  font-size: 1.4rem;
   opacity: 0;
   pointer-events: none;
 }
@@ -92,7 +98,8 @@ html, body {
 
 .speaker {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.4rem;
   letter-spacing: 0.05em;
-  opacity: 0.8;
+  color: #c0392b;
+  text-shadow: 0 0 12px rgba(200, 30, 20, 0.6);
 }
