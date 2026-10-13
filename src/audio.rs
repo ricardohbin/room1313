@@ -1,10 +1,12 @@
-//! Procedural audio for the title screen (Web Audio, no asset files):
-//! intro rumble and boom, a detuned drone and an out-of-tune music-box lullaby.
+//! Procedural audio for the title screen and the intro cinematic (Web Audio,
+//! no asset files): rumble and boom, a detuned drone, an out-of-tune
+//! music-box lullaby, rain, thunder, camera hum and typewriter clicks.
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    AudioBufferSourceNode, AudioContext, AudioNode, AudioScheduledSourceNode, BiquadFilterNode,
+    AudioBufferSourceNode, AudioContext, AudioNode, AudioParam, AudioScheduledSourceNode,
+    BiquadFilterNode,
     BiquadFilterType, GainNode, OscillatorNode, OscillatorType,
 };
 
@@ -31,6 +33,10 @@ struct Bus {
 pub struct Music {
     bus: Bus,
     theme: Option<(i32, Closure<dyn FnMut()>)>,
+    /// Looping rain (lowpass, gain), built on first use.
+    rain: Option<(BiquadFilterNode, GainNode)>,
+    /// Electrical hum of the CCTV monitor, built on first use.
+    hum: Option<GainNode>,
 }
 
 impl Music {
@@ -54,7 +60,7 @@ impl Music {
         bus.echo.connect_with_audio_node(&delay)?;
         chain(&[&delay, &tone, &feedback, &delay])?;
         chain(&[&tone, &wet, &bus.master])?;
-        Ok(Self { bus, theme: None })
+        Ok(Self { bus, theme: None, rain: None, hum: None })
     }
 
     /// Low noise swelling for `secs`, cut off right where `boom` lands.
@@ -74,6 +80,59 @@ impl Music {
     /// Soft tick for moving through the menu.
     pub fn blip(&self) {
         warn(self.bus.blip());
+    }
+
+    /// Just the drone, without the lullaby. Runs until `fade_out`.
+    pub fn drone(&self) {
+        warn(self.bus.drone());
+    }
+
+    /// Ramps the rain to `level` over `secs`, muffled through a lowpass at
+    /// `cutoff` Hz (lower sounds like it's heard from indoors).
+    pub fn rain(&mut self, level: f32, cutoff: f32, secs: f64) {
+        if self.rain.is_none() {
+            match self.bus.rain_loop() {
+                Ok(nodes) => self.rain = Some(nodes),
+                Err(e) => return web_sys::console::warn_1(&e),
+            }
+        }
+        if let Some((lowpass, gain)) = &self.rain {
+            let t = self.bus.ctx.current_time();
+            ramp(&lowpass.frequency(), cutoff, t, secs);
+            ramp(&gain.gain(), level, t, secs);
+        }
+    }
+
+    pub fn hum(&mut self, level: f32, secs: f64) {
+        if self.hum.is_none() {
+            match self.bus.hum_loop() {
+                Ok(gain) => self.hum = Some(gain),
+                Err(e) => return web_sys::console::warn_1(&e),
+            }
+        }
+        if let Some(gain) = &self.hum {
+            ramp(&gain.gain(), level, self.bus.ctx.current_time(), secs);
+        }
+    }
+
+    /// A thunderclap `delay` seconds from now.
+    pub fn thunder(&self, delay: f64) {
+        warn(self.bus.thunder(delay));
+    }
+
+    /// A burst of tape static, for cutting to camera footage.
+    pub fn static_burst(&self) {
+        warn(self.bus.static_burst());
+    }
+
+    /// An electrical spark: a few sharp snaps.
+    pub fn crackle(&self) {
+        warn(self.bus.crackle());
+    }
+
+    /// One typewriter key.
+    pub fn tick(&self) {
+        warn(self.bus.tick());
     }
 
     /// Starts the drone and loops the lullaby until `fade_out`.
@@ -108,11 +167,7 @@ impl Music {
         if let Some((id, _cb)) = self.theme.take() {
             window().clear_interval_with_handle(id);
         }
-        let t = self.bus.ctx.current_time();
-        let gain = self.bus.master.gain();
-        let _ = gain.cancel_scheduled_values(t);
-        let _ = gain.set_value_at_time(gain.value(), t);
-        let _ = gain.linear_ramp_to_value_at_time(0.0, t + secs);
+        ramp(&self.bus.master.gain(), 0.0, self.bus.ctx.current_time(), secs);
         let ctx = self.bus.ctx.clone();
         after((secs * 1000.0) as i32 + 100, move || {
             let _ = ctx.close();
@@ -175,6 +230,83 @@ impl Bus {
             play(&o, t, t + 2.6)?;
         }
         self.ting(t, 0.03)
+    }
+
+    fn rain_loop(&self) -> Result<(BiquadFilterNode, GainNode), JsValue> {
+        let noise = self.noise(3.0)?;
+        noise.set_loop(true);
+        let hp = self.filter(BiquadFilterType::Highpass, 300.0, 0.5)?;
+        let lp = self.filter(BiquadFilterType::Lowpass, 2000.0, 0.5)?;
+        let gain = self.ctx.create_gain()?;
+        gain.gain().set_value(0.0);
+        chain(&[&noise, &hp, &lp, &gain, &self.master])?;
+        noise.start()?;
+        Ok((lp, gain))
+    }
+
+    fn hum_loop(&self) -> Result<GainNode, JsValue> {
+        let gain = self.ctx.create_gain()?;
+        gain.gain().set_value(0.0);
+        let lp = self.filter(BiquadFilterType::Lowpass, 320.0, 1.0)?;
+        chain(&[&lp, &gain, &self.master])?;
+        for (ty, hz) in [(OscillatorType::Square, 50.0), (OscillatorType::Sine, 100.0)] {
+            let o = self.osc(ty, hz)?;
+            o.connect_with_audio_node(&lp)?;
+            o.start()?;
+        }
+        Ok(gain)
+    }
+
+    fn thunder(&self, delay: f64) -> Result<(), JsValue> {
+        let t = self.ctx.current_time() + delay;
+        let noise = self.noise(6.0)?;
+        let lp = self.filter(BiquadFilterType::Lowpass, 900.0, 0.8)?;
+        lp.frequency().set_value_at_time(900.0, t)?;
+        lp.frequency().exponential_ramp_to_value_at_time(90.0, t + 4.0)?;
+        let env = self.envelope(t, 0.0001)?;
+        env.gain().exponential_ramp_to_value_at_time(0.8, t + 0.08)?;
+        env.gain().exponential_ramp_to_value_at_time(0.35, t + 0.6)?;
+        env.gain().exponential_ramp_to_value_at_time(0.0001, t + 5.5)?;
+        chain(&[&noise, &lp, &env, &self.master])?;
+        env.connect_with_audio_node(&self.echo)?;
+        play(&noise, t, t + 6.0)
+    }
+
+    fn static_burst(&self) -> Result<(), JsValue> {
+        let t = self.ctx.current_time();
+        let noise = self.noise(0.5)?;
+        let bp = self.filter(BiquadFilterType::Bandpass, 2500.0, 0.7)?;
+        let env = self.envelope(t, 0.3)?;
+        env.gain().exponential_ramp_to_value_at_time(0.0001, t + 0.45)?;
+        chain(&[&noise, &bp, &env, &self.master])?;
+        play(&noise, t, t + 0.5)
+    }
+
+    fn crackle(&self) -> Result<(), JsValue> {
+        let t = self.ctx.current_time();
+        let hp = self.filter(BiquadFilterType::Highpass, 2000.0, 0.7)?;
+        chain(&[&hp, &self.master])?;
+        let mut rng = t.to_bits() | 1;
+        let mut at = t;
+        for _ in 0..5 {
+            let noise = self.noise(0.03)?;
+            let env = self.envelope(at, 0.25)?;
+            env.gain().exponential_ramp_to_value_at_time(0.0001, at + 0.025)?;
+            chain(&[&noise, &env, &hp])?;
+            play(&noise, at, at + 0.03)?;
+            at += 0.02 + rand(&mut rng) * 0.05;
+        }
+        Ok(())
+    }
+
+    fn tick(&self) -> Result<(), JsValue> {
+        let t = self.ctx.current_time();
+        let noise = self.noise(0.02)?;
+        let hp = self.filter(BiquadFilterType::Highpass, 3000.0, 0.7)?;
+        let env = self.envelope(t, 0.06)?;
+        env.gain().exponential_ramp_to_value_at_time(0.0001, t + 0.02)?;
+        chain(&[&noise, &hp, &env, &self.master])?;
+        play(&noise, t, t + 0.02)
     }
 
     fn blip(&self) -> Result<(), JsValue> {
@@ -303,6 +435,13 @@ fn chain(nodes: &[&AudioNode]) -> Result<(), JsValue> {
         pair[0].connect_with_audio_node(pair[1])?;
     }
     Ok(())
+}
+
+/// Glides `param` from wherever it is now to `to` over `secs`.
+fn ramp(param: &AudioParam, to: f32, t: f64, secs: f64) {
+    let _ = param.cancel_scheduled_values(t);
+    let _ = param.set_value_at_time(param.value(), t);
+    let _ = param.linear_ramp_to_value_at_time(to, t + secs);
 }
 
 fn play(node: &AudioScheduledSourceNode, from: f64, to: f64) -> Result<(), JsValue> {

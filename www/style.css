@@ -250,7 +250,8 @@ html, body {
 .splash-whisper.speak { animation: whisper 2600ms linear; } /* WHISPER_MS */
 
 /* Film grain + vignette over everything */
-.splash-grain {
+.splash-grain,
+.intro-grain {
   position: absolute;
   inset: -50%;
   pointer-events: none;
@@ -259,13 +260,78 @@ html, body {
   animation: grain 0.6s steps(6) infinite;
 }
 
-.splash::after {
+.splash::after,
+.intro::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
 }
+
+/* ---------- Intro cinematic (src/intro.rs) ---------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 240×135 canvas scaled up without smoothing */
+.intro-screen {
+  display: block;
+  width: min(94vw, calc((100vh - 12rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.intro-caption {
+  width: min(94vw, 50rem);
+  min-height: 6em;
+  text-align: center;
+  font-size: clamp(1rem, 2.4vw, 1.3rem);
+  line-height: 1.45;
+  letter-spacing: 0.03em;
+  color: #cfc4b6;
+  transition: opacity 900ms ease; /* FADE_MS */
+}
+
+.intro-caption.hide { opacity: 0; }
+
+.intro-line { margin: 0 0 0.4em; }
+
+/* the untyped rest of the line holds its space so nothing reflows */
+.intro-line .rest { visibility: hidden; }
+
+.intro-line.accent {
+  margin-top: 0.8em;
+  font-size: 1.35em;
+  letter-spacing: 0.14em;
+  color: #c0392b;
+  text-shadow: 0 0 12px rgba(200, 30, 20, 0.7);
+}
+
+.intro-hint {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1rem;
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+  color: #3a322d;
+}
+
+.intro.leaving .intro-hint { opacity: 0; }
 
 /* The game fades in out of the black */
 .stage { animation: fade-in 1.2s ease; }
