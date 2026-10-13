@@ -1,3 +1,7 @@
+# Game Design Document
+
+
+
 ## Detective Attributes & Deterioration System
 
 ### Overview
@@ -106,3 +110,48 @@ Attributes influence the game's events through a shared card system rather than 
 The player must balance **credibility, supernatural awareness, and physiological endurance** while pursuing an investigation that progressively destabilizes all three.
 
 The central dilemma is not simply whether the detective can uncover the truth, but **how much of himself he can sacrifice in the pursuit of it without losing the ability to finish the case.**
+
+
+
+
+## Case 358 — Room 1313
+
+### Setting
+
+The investigation centers on a mysterious crime committed in **Room 1313**. The case is officially registered as **Case 358**, a seemingly ordinary identification number concealing an occult significance.
+
+### Esoteric Symbolism
+
+In Hebrew Gematria, letters carry numerical values, allowing different words to share symbolic associations through their numerical equivalence.
+
+Two significant Hebrew words share the value **358**:
+
+| Hebrew | Transliteration | Meaning | Gematria |
+|---|---|---|---|
+| נחש | *Nachash* | Serpent | 50 + 8 + 300 = 358 |
+| משיח | *Mashiach* | Messiah | 40 + 300 + 10 + 8 = 358 |
+
+This traditional numerical correspondence associates two contrasting symbols: **the Serpent and the Messiah**, often interpreted through themes of temptation, corruption, salvation, and transformation.
+
+The case number therefore suggests an unsettling ambiguity: **is the force behind the crime a destroyer or a savior?**
+
+### Room 1313
+
+The repetition of thirteen reinforces the game's *Unlucky 13* theme. Its symbolic association with misfortune contrasts with the promise of salvation implicit in Case 358.
+
+Room 1313 serves as the central mystery, potentially existing at the boundary between ordinary reality and a concealed supernatural world.
+
+No established historical Gematria correspondence between 1313 and 358 is assumed. Their relationship belongs to the game's fictional occult mythology.
+
+### Narrative Integration
+
+- **Initial investigation:** Case 358 concerns an apparently ordinary crime in Room 1313.
+- **Emerging connections:** Evidence introduces recurring serpentine imagery, religious references, and unexplained numerical coincidences.
+- **Occult revelation:** The detective discovers the Gematria correspondence between *Nachash* and *Mashiach*, suggesting that the same entity may be interpreted as either a corrupting influence or a figure of salvation.
+- **Central ambiguity:** Witnesses, suspects, and supernatural manifestations provide conflicting accounts of the force associated with the room. Its true nature remains uncertain.
+
+### Design Intent
+
+The numbers should function as **discoverable clues rather than explicit exposition**. Their significance emerges through documents, testimony, artifacts, and the detective's changing Sensitivity.
+
+The underlying horror comes from the possibility that salvation and damnation are not opposites, but different interpretations of the same supernatural event.
