@@ -22,6 +22,17 @@ Unverified: after the browser test, the hint label was changed to sit on the
 trailing edge (lean right → text on the left) so it stays on screen while
 dragging. That change hasn't been rebuilt or retested.
 
+## Title screen (added 2026-10-13, draft)
+
+`src/splash.rs` runs before the game: a "press any key" gate (browsers only allow
+audio after a user gesture), then a black hold with a rumble, then ROOM 1313
+flickers in on a boom, then the menu (New Game / Continue (disabled) / Exit)
+fades in over the looping theme. New Game fades to black and calls `view::mount`.
+Exit can't close a tab, so it whispers "There is no exit."
+`src/audio.rs` synthesizes all sound with Web Audio (no asset files): a detuned
+drone plus an out-of-tune music-box lullaby, scheduled one loop ahead on the
+audio clock. The intro timings (`*_MS` in splash.rs) mirror durations in style.css.
+
 ## Architecture decisions
 
 - **All logic in Rust.** The JS in `www/index.html` only calls `init()`.

@@ -188,11 +188,11 @@ fn side_class(side: Side) -> &'static str {
     }
 }
 
-fn window() -> web_sys::Window {
+pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("no global window")
 }
 
-fn el(doc: &Document, tag: &str, class: &str) -> Result<HtmlElement, JsValue> {
+pub(crate) fn el(doc: &Document, tag: &str, class: &str) -> Result<HtmlElement, JsValue> {
     let node = doc.create_element(tag)?.dyn_into::<HtmlElement>()?;
     node.set_class_name(class);
     Ok(node)
@@ -218,7 +218,7 @@ fn listen<E: JsCast + 'static>(
     Ok(())
 }
 
-fn after(ms: i32, f: impl FnOnce() + 'static) {
+pub(crate) fn after(ms: i32, f: impl FnOnce() + 'static) {
     let cb = Closure::once_into_js(f);
     let _ = window().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms);
 }

@@ -14,12 +14,28 @@ console_error_panic_hook = "0.1"
 [dependencies.web-sys]
 version = "0.3"
 features = [
+  "AudioBuffer",
+  "AudioBufferSourceNode",
+  "AudioContext",
+  "AudioDestinationNode",
+  "AudioNode",
+  "AudioParam",
+  "AudioScheduledSourceNode",
+  "BaseAudioContext",
+  "BiquadFilterNode",
+  "BiquadFilterType",
+  "console",
   "CssStyleDeclaration",
+  "DelayNode",
   "Document",
   "DomTokenList",
   "Element",
   "EventTarget",
+  "GainNode",
   "HtmlElement",
+  "KeyboardEvent",
+  "OscillatorNode",
+  "OscillatorType",
   "PointerEvent",
   "Window",
 ]

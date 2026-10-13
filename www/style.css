@@ -103,3 +103,231 @@ html, body {
   color: #c0392b;
   text-shadow: 0 0 12px rgba(200, 30, 20, 0.6);
 }
+
+/* ---------- Title screen (src/splash.rs) ---------- */
+/* Durations mirror the *_MS constants in src/splash.rs. */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3rem;
+  transition: opacity 1800ms ease-in; /* LEAVE_MS */
+}
+
+.splash.leaving .splash-content { opacity: 0; }
+
+/* Gate: "press any key" */
+.splash-gate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: #000;
+  cursor: pointer;
+  transition: opacity 800ms ease; /* GATE_FADE_MS */
+}
+
+.splash-gate.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-prompt {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 0.25em;
+  color: #8c7f74;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.splash-note {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+  color: #4a403a;
+}
+
+/* Title */
+.splash-title {
+  margin: 0;
+  font-size: clamp(3rem, 13vw, 8rem);
+  font-weight: normal;
+  letter-spacing: 0.12em;
+  color: #c0392b;
+  text-shadow: 0 0 18px rgba(200, 30, 20, 0.7), 0 0 60px rgba(200, 30, 20, 0.35);
+  opacity: 0;
+}
+
+.splash.lit .splash-title {
+  /* flicker-in = TITLE_FLICKER_MS, then an occasional failing-bulb stutter */
+  animation:
+    flicker-in 2600ms linear forwards,
+    drift 6s ease-out forwards,
+    flicker-idle 9s 2600ms linear infinite;
+}
+
+/* One red frame of light when the title hits */
+.splash-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(160, 20, 10, 0.55), transparent 70%);
+  opacity: 0;
+}
+
+.splash.lit .splash-flash { animation: flash 1.2s ease-out; }
+
+/* Menu */
+.splash-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.5s ease;
+}
+
+.splash-menu.shown {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.splash-item {
+  font-size: 1.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8c7f74;
+  cursor: pointer;
+  transition: color 150ms ease, text-shadow 150ms ease;
+}
+
+.splash-item::before,
+.splash-item::after {
+  content: "–";
+  margin: 0 0.6em;
+  visibility: hidden;
+}
+
+.splash-item.selected {
+  color: #f3e9dc;
+  text-shadow: 0 0 12px rgba(200, 30, 20, 0.8);
+}
+
+.splash-item.selected::before,
+.splash-item.selected::after { visibility: visible; }
+
+.splash-item.disabled {
+  color: #3a322d;
+  cursor: default;
+}
+
+.splash-whisper {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  color: #c0392b;
+  opacity: 0;
+}
+
+.splash-whisper.speak { animation: whisper 2600ms linear; } /* WHISPER_MS */
+
+/* Film grain + vignette over everything */
+.splash-grain {
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0.09;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 0.6s steps(6) infinite;
+}
+
+.splash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
+}
+
+/* The game fades in out of the black */
+.stage { animation: fade-in 1.2s ease; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+@keyframes flicker-in {
+  0% { opacity: 0; }
+  4% { opacity: 0.9; }
+  6% { opacity: 0; }
+  14% { opacity: 0; }
+  16% { opacity: 1; }
+  19% { opacity: 0.1; }
+  30% { opacity: 0.1; }
+  33% { opacity: 0.8; }
+  36% { opacity: 0.3; }
+  45% { opacity: 1; }
+  48% { opacity: 0.4; }
+  52% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+@keyframes flicker-idle {
+  0%, 91%, 100% { opacity: 1; }
+  92% { opacity: 0.2; }
+  93% { opacity: 1; }
+  94.5% { opacity: 0.5; }
+  95.5% { opacity: 1; }
+}
+
+@keyframes drift {
+  from { transform: scale(1.12); filter: blur(3px); }
+  to { transform: scale(1); filter: blur(0); }
+}
+
+@keyframes flash {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes whisper {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  8% { opacity: 0.2; }
+  12%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-5%, 3%); }
+  40% { transform: translate(4%, -6%); }
+  60% { transform: translate(-3%, 7%); }
+  80% { transform: translate(6%, -2%); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
