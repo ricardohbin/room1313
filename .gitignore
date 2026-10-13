@@ -3,3 +3,4 @@
 /design/font-draft/.venv
 .claude
 __pycache__/
+/build

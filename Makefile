@@ -4,9 +4,11 @@ PORT ?= 8765
 WASM_TARGET := wasm32-unknown-unknown
 PKG_DIR := www/pkg
 WASM_PACK := wasm-pack build --target web --out-dir $(PKG_DIR) --no-pack
+BUILD_DIR := build
+RELEASE_ZIP := $(BUILD_DIR)/room1313-build$(shell git rev-list --count main)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup build dev serve run test lint fmt check clean
+.PHONY: help setup build release dev serve run test lint fmt check clean
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-8s %s\n", $$1, $$2}'
@@ -19,6 +21,12 @@ setup: ## Install the wasm target and wasm-pack (first time on a new machine)
 
 build: ## Release build of the game into www/pkg
 	$(WASM_PACK)
+
+release: build ## Release build, then zip www/ into build/room1313-build<commits on main>.zip
+	@mkdir -p $(BUILD_DIR)
+	@rm -f $(RELEASE_ZIP).zip
+	python3 -c "import shutil; shutil.make_archive('$(RELEASE_ZIP)', 'zip', 'www')"
+	@echo "Wrote $(RELEASE_ZIP).zip"
 
 dev: ## Faster, unoptimized debug build into www/pkg
 	$(WASM_PACK) --dev
@@ -42,4 +50,4 @@ check: lint test ## Lint and test
 
 clean: ## Remove build output
 	cargo clean
-	rm -rf $(PKG_DIR)
+	rm -rf $(PKG_DIR) $(BUILD_DIR)
