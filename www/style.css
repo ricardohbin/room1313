@@ -1,0 +1,98 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #2b2420;
+  color: #f3e9dc;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  width: min(360px, 90vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.scene-text {
+  min-height: 4.5em;
+  margin: 0;
+  text-align: center;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: #d9c3a0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+  touch-action: none; /* let pointer events handle touch drags */
+  transform-origin: 50% 120%;
+  /* keep in sync with TRANSITION_MS in src/view.rs */
+  transition: transform 300ms ease, opacity 300ms ease;
+}
+
+.card.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.card.entering {
+  transition: none;
+  transform: translateY(-30px) scale(0.9);
+  opacity: 0;
+}
+
+.card-portrait {
+  width: 55%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #8a6a4a;
+  color: #f3e9dc;
+  font-size: 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.card-hint {
+  position: absolute;
+  inset: 0 0 auto 0;
+  padding: 1rem 1.25rem;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(rgba(0, 0, 0, 0.65), transparent);
+  font-size: 1.15rem;
+  font-weight: bold;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* anchored to the trailing edge so the label stays on screen while dragging */
+.card-hint.left { text-align: right; }
+.card-hint.right { text-align: left; }
+
+.speaker {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
