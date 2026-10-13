@@ -1,13 +1,19 @@
-//! Procedural audio for the title screen and the intro cinematic (Web Audio,
-//! no asset files): rumble and boom, a detuned drone, an out-of-tune
-//! music-box lullaby, rain, thunder, camera hum and typewriter clicks.
+//! Procedural audio (Web Audio, no asset files) for the title screen and the
+//! cinematics: rumble and boom, a detuned drone, an out-of-tune music-box
+//! lullaby, rain, thunder, camera hum and typewriter clicks.
+//! `score` holds the endings' music, `foley` their sound effects.
+
+mod foley;
+mod score;
+
+pub use score::Score;
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    AudioBufferSourceNode, AudioContext, AudioNode, AudioParam, AudioScheduledSourceNode,
-    BiquadFilterNode,
-    BiquadFilterType, GainNode, OscillatorNode, OscillatorType,
+    AudioBuffer, AudioBufferSourceNode, AudioContext, AudioNode, AudioParam,
+    AudioScheduledSourceNode, BiquadFilterNode, BiquadFilterType, GainNode, OscillatorNode,
+    OscillatorType,
 };
 
 use crate::view::{after, window};
@@ -28,11 +34,16 @@ struct Bus {
     master: GainNode,
     /// Input of a dark feedback delay that feeds `master`.
     echo: GainNode,
+    /// Two seconds of white noise, shared by drums and effects.
+    grit: AudioBuffer,
 }
 
 pub struct Music {
     bus: Bus,
+    /// Interval that schedules the looping theme or score, one loop ahead.
     theme: Option<(i32, Closure<dyn FnMut()>)>,
+    /// Output of the playing score, so it can be cut dead.
+    score_out: Option<GainNode>,
     /// Looping rain (lowpass, gain), built on first use.
     rain: Option<(BiquadFilterNode, GainNode)>,
     /// Electrical hum of the CCTV monitor, built on first use.
@@ -55,12 +66,13 @@ impl Music {
         let wet = ctx.create_gain()?;
         wet.gain().set_value(0.5);
 
-        let bus = Bus { ctx, master, echo };
+        let grit = noise_buffer(&ctx, 2.0)?;
+        let bus = Bus { ctx, master, echo, grit };
         let tone = bus.filter(BiquadFilterType::Lowpass, 1800.0, 0.7)?;
         bus.echo.connect_with_audio_node(&delay)?;
         chain(&[&delay, &tone, &feedback, &delay])?;
         chain(&[&tone, &wet, &bus.master])?;
-        Ok(Self { bus, theme: None, rain: None, hum: None })
+        Ok(Self { bus, theme: None, score_out: None, rain: None, hum: None })
     }
 
     /// Low noise swelling for `secs`, cut off right where `boom` lands.
@@ -146,12 +158,17 @@ impl Music {
         // The lullaby enters after the drone has had a few seconds to swell.
         let mut next = self.bus.ctx.current_time() + 3.0;
         let bus = self.bus.clone();
-        // Each tick schedules one whole loop ahead on the audio clock, so
-        // timer jitter never reaches the music.
-        let mut tick = move || {
+        self.start_loop(loop_s, move || {
             warn(bus.lullaby(next));
             next += loop_s;
-        };
+        });
+    }
+
+    /// Calls `tick` now and then every `loop_s`. Each tick schedules one whole
+    /// loop on the audio clock, a loop ahead, so timer jitter never reaches the music.
+    fn start_loop(&mut self, loop_s: f64, mut tick: impl FnMut() + 'static) {
+        self.stop_loop();
+        tick();
         tick();
         let cb = Closure::<dyn FnMut()>::new(tick);
         if let Ok(id) = window().set_interval_with_callback_and_timeout_and_arguments_0(
@@ -162,11 +179,15 @@ impl Music {
         }
     }
 
-    /// Fades everything out, then closes the audio context.
-    pub fn fade_out(mut self, secs: f64) {
+    fn stop_loop(&mut self) {
         if let Some((id, _cb)) = self.theme.take() {
             window().clear_interval_with_handle(id);
         }
+    }
+
+    /// Fades everything out, then closes the audio context.
+    pub fn fade_out(mut self, secs: f64) {
+        self.stop_loop();
         ramp(&self.bus.master.gain(), 0.0, self.bus.ctx.current_time(), secs);
         let ctx = self.bus.ctx.clone();
         after((secs * 1000.0) as i32 + 100, move || {
@@ -372,17 +393,17 @@ impl Bus {
             // A worn-out box: slightly late, slightly out of tune.
             let jitter = (rand(&mut rng) - 0.5) * 0.03;
             let cents = (rand(&mut rng) - 0.5) * 24.0;
-            self.music_box(note, cents, start + i as f64 * STEP_S + jitter)?;
+            self.music_box(note, cents, start + i as f64 * STEP_S + jitter, &self.master)?;
         }
         Ok(())
     }
 
-    fn music_box(&self, note: u8, cents: f64, t: f64) -> Result<(), JsValue> {
-        let hz = 440.0 * 2f64.powf((note as f64 - 69.0) / 12.0 + cents / 1200.0);
+    fn music_box(&self, note: u8, cents: f64, t: f64, out: &AudioNode) -> Result<(), JsValue> {
+        let hz = midi(note as f64 + cents / 100.0);
         let env = self.envelope(t, 0.0)?;
         env.gain().linear_ramp_to_value_at_time(0.13, t + 0.005)?;
         env.gain().exponential_ramp_to_value_at_time(0.0001, t + 2.2)?;
-        env.connect_with_audio_node(&self.master)?;
+        env.connect_with_audio_node(out)?;
         env.connect_with_audio_node(&self.echo)?;
         // Fundamental, octave and a slightly inharmonic tine partial.
         for (mult, level) in [(1.0, 1.0), (2.0, 0.35), (4.17, 0.12)] {
@@ -418,16 +439,32 @@ impl Bus {
     }
 
     fn noise(&self, secs: f64) -> Result<AudioBufferSourceNode, JsValue> {
-        let rate = self.ctx.sample_rate();
-        let len = (secs * rate as f64) as u32;
-        let buffer = self.ctx.create_buffer(1, len, rate)?;
-        let mut rng = 0x9E37_79B9_7F4A_7C15;
-        let samples: Vec<f32> = (0..len).map(|_| (rand(&mut rng) * 2.0 - 1.0) as f32).collect();
-        buffer.copy_to_channel(&samples, 0)?;
         let src = self.ctx.create_buffer_source()?;
-        src.set_buffer(Some(&buffer));
+        src.set_buffer(Some(&noise_buffer(&self.ctx, secs)?));
         Ok(src)
     }
+
+    /// A source on the shared noise buffer (up to 2s), cheaper than `noise` for drums.
+    fn grit(&self) -> Result<AudioBufferSourceNode, JsValue> {
+        let src = self.ctx.create_buffer_source()?;
+        src.set_buffer(Some(&self.grit));
+        Ok(src)
+    }
+}
+
+fn noise_buffer(ctx: &AudioContext, secs: f64) -> Result<AudioBuffer, JsValue> {
+    let rate = ctx.sample_rate();
+    let len = (secs * rate as f64) as u32;
+    let buffer = ctx.create_buffer(1, len, rate)?;
+    let mut rng = 0x9E37_79B9_7F4A_7C15;
+    let samples: Vec<f32> = (0..len).map(|_| (rand(&mut rng) * 2.0 - 1.0) as f32).collect();
+    buffer.copy_to_channel(&samples, 0)?;
+    Ok(buffer)
+}
+
+/// Frequency of a MIDI note (fractional notes detune).
+fn midi(note: f64) -> f64 {
+    440.0 * 2f64.powf((note - 69.0) / 12.0)
 }
 
 fn chain(nodes: &[&AudioNode]) -> Result<(), JsValue> {

@@ -1,7 +1,8 @@
 # Cinematics
 
-How the intro cinematic of Room 13 is built, and the steps we followed to make
-it. Use this as the recipe for new cutscenes (endings, chapter breaks, etc.).
+How the cinematics of Room 13 are built (the intro and the six game-over
+endings), and the steps we followed to make them. Use this as the recipe for
+new cutscenes (chapter breaks, new endings, etc.).
 
 ## The intro at a glance
 
@@ -24,14 +25,43 @@ palette is mostly near-black, with a few accent colours: the title red
 Controls: click / Space / Enter finishes the typing caption, or moves on if
 it's done. Escape skips the whole intro. Shots also advance by themselves.
 
+## The endings at a glance
+
+One tragedy per attribute extreme from `GAME.md`. Each ending has its own score,
+and each closes on a document (newspaper, police report or hospital record) whose
+caption ends with the name of the loss in red.
+
+| Attribute | Ending (`Ending::`) | Shots | Score (`Score::`) |
+|---|---|---|---|
+| Reputation low | `Dismissal` | Your hand lays the badge, then the gun, on the captain's desk; he never looks up → you leave the precinct in the rain with a box → *THE EVENING STAR: DETECTIVE DISMISSED* | `Lament`: lonely noir horn over slow piano, D minor |
+| Reputation high | `Assassination` | Night street; a motorcycle passes and the passenger opens fire; the shop window shatters; you fall → *DETECTIVE SHOT DEAD* | `Thrash`: palm-muted E riff with a tritone, skank beat, 190 bpm |
+| Sensitivity low | `FatalHaunting` | You run down your own hallway; doors slam, lights die behind you, handprints appear → you trip at the top of the dark stairs and fall all the way down → police report *ACCIDENTAL DEATH*, stamped CLOSED | `Psychobilly`: slap-bass boogie, backbeat, creepy surf lick, 180 bpm |
+| Sensitivity high | `Institutionalization` | Two orderlies drag you to a van while red eyes watch from the windows → you rock in a padded cell scratched with the sigil and tally marks of 13 → *INVOLUNTARY COMMITMENT*, stamped NO VISITS | `Asylum`: detuned music box over a dissonant cluster, breath swells |
+| Arousal low | `Coma` | You sway in the bullpen as your vision closes in, collapse, officers rush over → hospital bed, heart monitor, empty chair → *PATIENT IN COMA* | `Requiem`: piano and strings, A minor with a dramatic E major |
+| Arousal high | `FatalOverload` | Home alone, hand on the wall, heart racing (the screen shakes and flushes red on each beat) until you fall, and **the music stops dead** → the same room, still; the phone rings and rings → coroner's *CARDIAC ARREST*, stamped DECEASED | `Hardcore`: d-beat, power chords on every 8th, 210 bpm |
+
+Endings aren't triggered by the game yet (attributes don't exist in the code).
+The game will call `endings::play(Ending::X, "app", on_done)`; for now an ending
+ends by reloading back to the title screen.
+
+**Preview an ending:** open `http://localhost:8765/#ending=<name>` and pick New
+Game. Names: `dismissal`, `assassination`, `haunting`, `institution`, `coma`,
+`overload`.
+
 ## Files
 
 | File | What lives there |
 |---|---|
-| `src/intro.rs` | The `SCENES` table (shot, caption lines, timing), the frame loop, the typewriter, fades, input, and the sound cues per shot |
-| `src/intro_art.rs` | The pixel art: the `Pen` painter, a 3×5 pixel font, shared pieces (sky, rain, skyline, sigil…), and one function per shot |
-| `src/audio.rs` | Procedural sound (no asset files): rain, thunder, hum, static, spark crackle, typewriter tick, drone, boom, sting |
-| `www/style.css` | The *Intro cinematic* section: canvas scaling, caption, hint, grain and vignette |
+| `src/cinematic.rs` | The player: `Film` (scenes + score), `Scene` (shot, caption, timing, cue, sync), the frame loop, typewriter, fades, input |
+| `src/intro.rs` | The intro's `Film`: its scene table, cues and syncs |
+| `src/endings.rs` | `Ending`, the six endings' `Film`s, preview names |
+| `src/art/mod.rs` | `Shot`, `Art`, the `Pen` painter, the 3×5 pixel font (A–Z, 0–9, some punctuation), shared pieces (sky, rain, skyline, sigil…) |
+| `src/art/intro.rs` | The intro's shots |
+| `src/art/endings.rs` | The endings' shots, the detective sprite (`agent` with poses), the document, and the timing constants sound syncs to |
+| `src/audio/mod.rs` | `Music`: title theme, rain, thunder, hum, static, ticks, drone, boom, sting |
+| `src/audio/score.rs` | `Score`: a tiny synth band (drums, distorted guitar, bass, slap bass, surf guitar, piano, strings, horn, music box) and the six endings' scores |
+| `src/audio/foley.rs` | Ending effects: thuds, gunshots, motorcycle pass, heart monitor, telephone bell |
+| `www/style.css` | The *Cinematics* section: canvas scaling, caption, hint, grain and vignette (`.cine-*`) |
 
 ## How it works
 
@@ -49,60 +79,80 @@ it's done. Escape skips the whole intro. Shots also advance by themselves.
 - Paint back to front: background, props, haze, then darkness (`p.light`),
   and last anything that emits its own light (TV sparks, eyes in the dark, HUD).
 
-### `Pen` toolbox (`src/intro_art.rs`)
+### `Pen` toolbox (`src/art/mod.rs`)
 
 | Method | Use |
 |---|---|
 | `rect(x, y, w, h, color)` / `px(x, y, color)` | Filled boxes and single pixels. Coordinates are floored, so pixels stay crisp |
 | `ink(color)` + `dot(x, y)` | Fast path for thousands of pixels in one colour (carpet, noise) |
 | `line(x0, y0, x1, y1, color)` | Bresenham line, always 1px wide (cracks, rain, claw marks) |
-| `text(s, x, y, color)` | 3×5 pixel font with a 4px advance. Only the glyphs in `glyph()` exist; add more there if you need new letters |
+| `text(s, x, y, color)` / `text_at_scale(s, x, y, scale, color)` | 3×5 pixel font with a 4px advance (×`scale` for headlines). Glyphs live in `glyph()` |
 | `light(cx, cy, r, dark)` | Darkens everything except a soft circle: flashlights and vignettes |
 | `glow(cx, cy, r, "r,g,b", alpha)` | Soft radial light: TV, monitor, sparks |
 
 Shared pieces: `sky`, `clouds`, `bolt`, `lightning`, `skyline`, `rain`,
-`splashes`, `streetlamp`, `sigil`, `ring`, `curl`.
+`splashes`, `streetlamp`, `sigil`, `ring`, `curl`. In `art/endings.rs`:
+`agent(p, x, ground, pose, coat, rim)` draws the detective (`Stand`, `Walk`,
+`Run`, `Lean`, `Kneel`, `Lie`, `Slump`, `Dragged`). Keep the coat `COAT` and give it a
+rim light: a dark figure on a dark street disappears (we hit this twice).
 
 Use radial `glow`/`light` for light sources. Stacked semi-transparent
 rectangles look like hard boxes at this resolution; we tried that first and
 replaced it.
 
-### Timeline (`src/intro.rs`)
+### Timeline (`src/cinematic.rs`)
 
-Each `Scene` has:
+A `Film` is a list of scenes plus a `score` function that starts the music.
+Scenes are built with a small builder:
 
-- `shot`: which art function to draw.
-- `lines`: caption lines, typed one after another and kept on screen.
-  Keep each line **at most ~60 characters**, or it wraps at the caption width.
-- `text_at`: ms after the shot starts before typing begins. Give the image a
-  moment first, longer if something happens first (the office pull-back takes
-  ~5s).
-- `cut_in`: hard cut from the previous shot instead of fading through black.
+```rust
+Scene::new(Shot::Corridor, &["First line.", "Second line."], 1200.0) // text_at, ms
+    .cut_in()                       // hard cut instead of fading through black
+    .cue(|m| m.rain(0.2, 800.0, 1.0)) // sounds when the shot starts
+    .sync(|m, prev, now| {          // every frame, shot time in seconds
+        if crossed(prev, now, DOOR_SLAMS[0]) { m.knock(0.9); }
+    })
+```
 
-Timing constants: `CHAR_MS` (typing speed), `LINE_PAUSE_MS`, `HOLD_MS` (how
-long a finished caption stays), `FINAL_HOLD_MS`, `FADE_MS`, `END_FADE_MS`.
-**`FADE_MS` must match the `.intro-caption` transition in `www/style.css`.**
+- Caption lines are typed one after another and stay on screen. Keep each one
+  **at most ~60 characters**, or it wraps.
+- `text_at`: how long the image plays before typing starts. Make it longer when
+  the action comes first (drive-by, collapse, office pull-back).
+- A scene auto-advances `HOLD_MS` after its caption finishes (`FINAL_HOLD_MS`
+  for the last). If an event must happen on screen, make sure the caption timing
+  lasts past it.
+- The last line of the last scene is the hook: styled `.accent`, lands on `boom()`.
+  For endings, it's the name of the loss.
 
-The last line of the last scene is the hook. It's styled `.accent` and plays
-`boom()` when it starts typing.
-
-While a caption types, the untyped rest is kept in an invisible span, so the
-text never reflows.
+Timing constants: `CHAR_MS`, `LINE_PAUSE_MS`, `HOLD_MS`, `FINAL_HOLD_MS`,
+`FADE_MS`, `END_FADE_MS`. **`FADE_MS` must match the `.cine-caption` transition
+in `www/style.css`.**
 
 ### Sound
 
-The intro creates its own `Music`, because the title screen's fades out. Browsers allow it
-because the player already interacted with the page. Cues live in
-`Intro::cue(shot)` and fire when a shot starts:
+Each film creates its own `Music` (the title's fades out); the browser allows it
+because the player already clicked. `Film.score` starts the music (the intro's
+drone, or an ending's `Score`), `Scene.cue` plays sounds when a shot starts, and
+`Scene.sync` hits moments in the picture.
 
-- City: loud rain, plus thunder timed to `LIGHTNING` (+0.6s, sound after light).
-- Hotel: rain. Kindle: rain muffled (indoors, low lowpass) + sting.
-- Room: muffled rain. Each spark burst plays `crackle()`, synced by
-  checking `spark(t)` every frame and playing on the burst's first frame.
-- Cctv: rain off, camera hum, static burst. Office: soft rain on the window, low hum.
+**Syncing:** the art exports the moment (`BADGE_DROP`, `FIRE`, `STAIRS_HITS`,
+`OVERLOAD_FALL`, `spark(t)`…) and the scene's `sync` fires when the shot clock
+crosses it (`crossed(prev, now, at)`). Never copy the numbers into the sound.
 
-For sounds synced to something on screen, expose the timing from the art
-(`LIGHTNING`, `spark(t)`) and react to it in `intro.rs`. Don't duplicate the numbers.
+**Scores** (`src/audio/score.rs`) are sequenced on a 16th-note grid: each score
+is a function that schedules one loop of notes on the audio clock, and
+`Music::score` re-runs it every loop, always one loop ahead. To write one:
+pick `tempo()` (bpm, bars), then call instruments per step: `kick`, `snare`,
+`hat`, `crash`, `bass`, `power` (distorted power chord, palm-muted or open),
+`pluck`, `slap`, `piano`, `pad`, `horn`, `music_box`, `breath`.
+
+`Music::stop_score()` cuts the score instantly, notes already scheduled included
+(the fatal-overload fall). If a later shot must be silent, call it in that shot's
+`cue` too, in case the player skipped past the moment.
+
+Intro cues: city loud rain + thunder after `LIGHTNING`; hotel rain; e-reader
+muffled rain + sting; room muffled rain + a crackle per spark burst; CCTV hum and
+static; office soft rain and hum.
 
 ### Special tricks
 
@@ -118,6 +168,8 @@ For sounds synced to something on screen, expose the timing from the art
   and only when the flashlight is pointing far away.
 
 ## Steps we followed
+
+### Intro
 
 1. **Brief.** Story beats from the design (date, hotel, the e-reader, the room,
    the CCTV, the new officer) and a visual reference (Dave the Diver × Cthulhu).
@@ -141,30 +193,65 @@ For sounds synced to something on screen, expose the timing from the art
 8. **Check:** `cargo clippy --target wasm32-unknown-unknown` clean,
    `cargo test` passing, every shot screenshotted, and the hand-off to the card game works.
 
+### Endings
+
+1. **Brief.** One loss per attribute extreme from `GAME.md` (the "Loss"
+   bullets), plus an animation idea and a music genre per ending.
+2. **Refactor first.** The intro's player became `cinematic.rs` (`Film` +
+   `Scene` builder, `cue`/`sync` hooks), the art moved to `art/`, audio to
+   `audio/`, so endings are only data plus art.
+3. **Structure.** 2–3 action shots per ending, closing on a document (GAME.md:
+   "expressed through a short epilogue, police report, newspaper clipping, or
+   hospital record"). The caption ends with the loss name.
+4. **Music.** A small step sequencer and synth band, one score per ending
+   matching the requested genre.
+5. **Art.** A shared detective sprite with poses, then one function per shot.
+   Moments sound must hit are exported constants.
+6. **Review.** Screenshot every ending while it auto-plays (see below). Fixes from
+   review:
+   - the detective vanished on dark backgrounds → lighter coat and rim light
+   - the motorcycle was black on a black road → lighter body, rim light, headlight glow
+   - the hospital patient was lost in the sheets → head drawn on the pillow
+   - the hand stopped short of the wall → moved the sprite
+
 ## Build, run, check
 
 ```sh
-wasm-pack build --target web --out-dir www/pkg --no-pack
-python3 -m http.server 8765 -d www        # open http://localhost:8765
-cargo clippy --target wasm32-unknown-unknown
+make run                                 # build + serve at http://localhost:8765
+make check                               # clippy (wasm) + tests
 ```
 
-Screenshots: run headless Chrome with `--remote-debugging-port`, drive it over CDP
-from a Node script, and save `Page.captureScreenshot` output. The script presses a key
-for the gate, Enter for *New Game*, then waits about 2–3s into each shot and
-presses Space twice (finish caption, next shot). Also collect console
-messages and exceptions over CDP to catch Rust panics.
+Endings: `http://localhost:8765/#ending=<name>`, then New Game.
+
+Screenshots: headless Chrome with `--remote-debugging-port`, driven over CDP
+from a Node script that saves `Page.captureScreenshot` output and collects
+console messages and exceptions (catches Rust panics and audio warnings).
+- **Intro:** press a key for the gate, Enter for New Game, then wait 2–3s into
+  each shot and press Space twice (finish caption, next shot).
+- **Endings:** don't press keys during playback; key presses drift out of step
+  with auto-advance and skip shots. Instead, let it play and poll the caption
+  text (`.cine-caption`) with `Runtime.evaluate`. A change means a new shot; take
+  frames at fixed offsets after it (1.5s, 3.5s, 5.5s, 8s). Run several endings in
+  parallel on different debugging ports, then put the frames side by side on
+  one HTML contact sheet, screenshotted by headless Chrome.
 
 Tips:
 - To see a rare or short event (a spark burst, a 3-frame apparition),
   temporarily force it on, build, take the screenshot, then **revert and rebuild**.
 - Captures right after a shot change land in the fade-in; wait at least `FADE_MS`.
+- Music and effects can't be judged from screenshots. Listen to them.
 
 ## Adding a new cinematic shot
 
-1. Add a variant to `Shot` and a `fn my_shot(p: &Pen, t: f64)` in
-   `src/intro_art.rs`. Hook it up in `Art::draw`.
-2. Add a `Scene { shot, lines, text_at, cut_in }` to `SCENES` in `src/intro.rs`
-   (bump the array length).
-3. Add its sound cue in `Intro::cue`.
-4. Build, take screenshots, and review against the style notes above.
+1. Add a variant to `Shot` (`src/art/mod.rs`), a `pub(super) fn my_shot(p: &Pen, t: f64)`
+   in `art/intro.rs` or `art/endings.rs`, and hook it up in `Art::draw`.
+2. Export any moment the sound must hit as a `pub const`.
+3. Add a `Scene::new(...)` with `.cue`/`.sync` to the film's table (bump the array length).
+4. Build, screenshot, review against the style notes above.
+
+## Adding a new ending or score
+
+1. Add the `Ending` variant, its `name()` for previews, a `static` `Film` and a
+   scene table in `src/endings.rs`, and its document as a `Doc` variant.
+2. For new music: add a `Score` variant with its `tempo()` and a function in
+   `audio/score.rs` that schedules one loop.

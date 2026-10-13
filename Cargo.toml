@@ -37,9 +37,11 @@ features = [
   "HtmlCanvasElement",
   "HtmlElement",
   "KeyboardEvent",
+  "Location",
   "OscillatorNode",
   "OscillatorType",
   "PointerEvent",
+  "WaveShaperNode",
   "Window",
 ]
 

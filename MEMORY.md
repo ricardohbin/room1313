@@ -29,25 +29,28 @@ audio after a user gesture), then a black hold with a rumble, then ROOM 1313
 flickers in on a boom, then the menu (New Game / Continue (disabled) / Exit)
 fades in over the looping theme. New Game fades to black and calls `view::mount`.
 Exit can't close a tab, so it whispers "There is no exit."
-`src/audio.rs` synthesizes all sound with Web Audio (no asset files): a detuned
+`src/audio/` synthesizes all sound with Web Audio (no asset files): a detuned
 drone plus an out-of-tune music-box lullaby, scheduled one loop ahead on the
 audio clock. The intro timings (`*_MS` in splash.rs) mirror durations in style.css.
 
-## Intro cinematic (added 2026-10-13, draft)
+## Cinematics (added 2026-10-13, draft)
 
-`src/intro.rs` plays between New Game and the first card: six pixel-art shots
-with typed captions (rainy city → Hotel Lumen → e-reader with the sigil →
-wrecked room in sulfur haze, lit only by a flashlight → green CCTV of the renter
-looking back → camera pulls back from the monitor to the new officer's desk,
-"What happened in room 1313?"). Click/Space/Enter finishes a caption or moves
-on; Escape skips. `src/intro_art.rs` paints each shot as a pure function of
-time on a 240×135 canvas (CSS `image-rendering: pixelated`), with its own 3×5
-pixel font. The office shot renders the CCTV feed and the office offscreen and
-zooms out from the monitor. The intro creates a new `Music` (rain, thunder, hum,
-static, typewriter ticks, drone) since the title's fades out. `FADE_MS` in
-intro.rs mirrors `.intro-caption` in style.css. Verified by screenshots in
-headless Chrome; Escape-to-skip and the audio weren't checked by ear.
+All cutscenes run on one player, `src/cinematic.rs` (`Film` = scenes + score;
+`Scene` builder with `cue`/`sync` sound hooks). Shots are pure functions of
+time painted on a 240×135 canvas (`src/art/`), sound is procedural
+(`src/audio/`: `score.rs` is a step sequencer + synth band, `foley.rs` effects).
 Full recipe and conventions: `CINEMATICS.md`.
+
+- **Intro** (`src/intro.rs`): six shots between New Game and the first card,
+  ending "What happened in room 1313?" (case number on the folder is 358).
+- **Endings** (`src/endings.rs`): six game-over films, one per attribute
+  extreme in GAME.md, each with its own score (lament, thrash, psychobilly,
+  asylum, requiem, hardcore) and a closing document. Not wired to gameplay yet:
+  attributes don't exist in code. Preview with `#ending=<name>` + New Game;
+  an ending reloads back to the title.
+
+Verified by screenshots in headless Chrome (no console errors). Not verified:
+audio by ear, Escape-to-skip.
 
 ## Architecture decisions
 
@@ -69,7 +72,7 @@ Full recipe and conventions: `CINEMATICS.md`.
 - `src/swipe.rs`: `SwipeConfig` (threshold, rotation, vertical damping), `Drag`
 - `src/view.rs`: DOM, pointer handlers, `commit()` animation sequence
 - `src/demo.rs`: 4 hard-coded placeholder scenes (intro, riot, feast, war)
-- `src/splash.rs`, `src/intro.rs`, `src/intro_art.rs`, `src/audio.rs`: title, intro, sound
+- `src/splash.rs`: title screen; `src/cinematic.rs`, `src/intro.rs`, `src/endings.rs`, `src/art/`, `src/audio/`: cinematics and sound (see CINEMATICS.md)
 - `src/lib.rs`: `#[wasm_bindgen(start)]` entry point (splash → intro → view)
 - `www/index.html`, `www/style.css`; `www/pkg/` is generated (gitignored)
 

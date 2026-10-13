@@ -251,7 +251,7 @@ html, body {
 
 /* Film grain + vignette over everything */
 .splash-grain,
-.intro-grain {
+.cine-grain {
   position: absolute;
   inset: -50%;
   pointer-events: none;
@@ -261,7 +261,7 @@ html, body {
 }
 
 .splash::after,
-.intro::after {
+.cine::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -269,9 +269,9 @@ html, body {
   background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
 }
 
-/* ---------- Intro cinematic (src/intro.rs) ---------- */
+/* ---------- Cinematics (src/cinematic.rs) ---------- */
 
-.intro {
+.cine {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -287,7 +287,7 @@ html, body {
 }
 
 /* 240×135 canvas scaled up without smoothing */
-.intro-screen {
+.cine-screen {
   display: block;
   width: min(94vw, calc((100vh - 12rem) * 16 / 9));
   aspect-ratio: 16 / 9;
@@ -295,7 +295,7 @@ html, body {
   image-rendering: pixelated;
 }
 
-.intro-caption {
+.cine-caption {
   width: min(94vw, 50rem);
   min-height: 6em;
   text-align: center;
@@ -306,14 +306,14 @@ html, body {
   transition: opacity 900ms ease; /* FADE_MS */
 }
 
-.intro-caption.hide { opacity: 0; }
+.cine-caption.hide { opacity: 0; }
 
-.intro-line { margin: 0 0 0.4em; }
+.cine-line { margin: 0 0 0.4em; }
 
 /* the untyped rest of the line holds its space so nothing reflows */
-.intro-line .rest { visibility: hidden; }
+.cine-line .rest { visibility: hidden; }
 
-.intro-line.accent {
+.cine-line.accent {
   margin-top: 0.8em;
   font-size: 1.35em;
   letter-spacing: 0.14em;
@@ -321,7 +321,7 @@ html, body {
   text-shadow: 0 0 12px rgba(200, 30, 20, 0.7);
 }
 
-.intro-hint {
+.cine-hint {
   position: absolute;
   right: 1.25rem;
   bottom: 1rem;
@@ -331,7 +331,7 @@ html, body {
   color: #3a322d;
 }
 
-.intro.leaving .intro-hint { opacity: 0; }
+.cine.leaving .cine-hint { opacity: 0; }
 
 /* The game fades in out of the black */
 .stage { animation: fade-in 1.2s ease; }
