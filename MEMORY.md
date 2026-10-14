@@ -62,7 +62,10 @@ redemption → the shadow's finale choice → `Ending::Truth`. Engine support:
 `Scene::excludes`, `after(item, rounds)`, `weight`, `until(item)` (repeat until
 accepted), `Choice::finale`, `Engine::outcome() -> Outcome::{Loss, Truth}`.
 START_ITEMS is now empty. Balance is checked by a bot simulation test
-(`the_quest_can_be_won`): about 72% wins, about 68 cards. Dev link: `#card=<id>`.
+(`the_quest_can_be_won`): about 73% wins, about 113 cards (with ~45
+filler cards and 7 side items: cat, flask, recorder, pamphlets, plaque,
+voucher, invoice; see GAME.md). When adding cards, check the sim and keep the
+mean Arousal delta per choice near 0: Arousal-high is what kills most runs. Dev link: `#card=<id>`.
 
 ## Cards (added 2026-10-13, draft)
 

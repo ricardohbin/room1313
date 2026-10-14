@@ -115,10 +115,18 @@ pub enum Item {
     FirstImmersion,
     SecondImmersion,
     Redemption,
+    // Side items: no use to the quest, but people have opinions about them.
+    Cat,
+    Flask,
+    Recorder,
+    Pamphlets,
+    Plaque,
+    Voucher,
+    Invoice,
 }
 
 impl Item {
-    pub const ALL: [Item; 12] = [
+    pub const ALL: [Item; 19] = [
         Item::EReader,
         Item::RoomKey,
         Item::Negatives,
@@ -131,6 +139,13 @@ impl Item {
         Item::FirstImmersion,
         Item::SecondImmersion,
         Item::Redemption,
+        Item::Cat,
+        Item::Flask,
+        Item::Recorder,
+        Item::Pamphlets,
+        Item::Plaque,
+        Item::Voucher,
+        Item::Invoice,
     ];
 
     pub fn name(self) -> &'static str {
@@ -147,6 +162,13 @@ impl Item {
             Item::FirstImmersion => "First immersion",
             Item::SecondImmersion => "Second immersion",
             Item::Redemption => "Redemption",
+            Item::Cat => "Mrs. Pell's cat",
+            Item::Flask => "A dead man's flask",
+            Item::Recorder => "Vera's recorder",
+            Item::Pamphlets => "The Last Hour pamphlets",
+            Item::Plaque => "Employee of the Month",
+            Item::Voucher => "A free night in 1313",
+            Item::Invoice => "Quill's invoice",
         }
     }
 }
@@ -527,5 +549,404 @@ pub fn deck() -> Vec<Scene> {
             pick("Lend it to him", (-15, 5, -5)).takes(RoomKey),
         )
         .requires(RoomKey),
+        // ================= Fillers =================
+        // Nothing here moves the quest; it's the city getting on with being itself.
+
+        // ---------- Holloway: useless clues, delivered too closely ----------
+        card(
+            "officer_hair",
+            Officer,
+            Summoned,
+            "Found a hair in the drain of 1313. Long, grey. Lab says it's from a wig. A cheap wig. Want to smell it?",
+            pick("Absolutely not", (0, -5, 5)),
+            pick("...Fine", (-5, 10, -5)),
+        ),
+        card(
+            "officer_lunch",
+            Officer,
+            Summoned,
+            "I ate lunch at the crime scene. Egg salad. Forensics thinks some of the sulfur smell might've been me.",
+            pick("Write him up", (5, -5, 5)),
+            pick("Let it go", (-5, 0, -5)),
+        ),
+        card(
+            "officer_toenail",
+            Officer,
+            Summoned,
+            "Toenail clipping, under the bed in 1313. I bagged it, labeled it. Then I lost the label. Big toe, I think.",
+            pick("Find the label", (5, 0, 5)),
+            pick("Burn the bag", (-5, -5, -5)),
+        ),
+        card(
+            "officer_shoes",
+            Officer,
+            Unannounced,
+            "Took my shoes off in the evidence room. Long shift. The e-reader's screen went dark for a second. Coincidence?",
+            pick("Shoes on. Now.", (0, -5, 5)),
+            pick("Do it again", (-5, 10, 0)),
+        )
+        .requires(EReader),
+        card(
+            "officer_cat",
+            Officer,
+            Summoned,
+            "Mrs. Pell left her cat with us. Says it won't stop staring at your desk. So I guess it's yours now.",
+            pick("Take it to the pound", (5, -5, 0)),
+            pick("Keep the cat", (0, 5, -5)).gives(Cat),
+        )
+        .excludes(Cat),
+        card(
+            "officer_flask",
+            Officer,
+            Unannounced,
+            "My uncle's flask. Rye. For the nerves. He carried it thirty years on the force. Then one night he didn't.",
+            pick("Not on duty", (5, 0, 5)),
+            pick("Just a sip", (-5, 5, -10)).gives(Flask),
+        )
+        .excludes(Flask),
+        card(
+            "officer_flask_back",
+            Officer,
+            Summoned,
+            "Could I have the flask back? It's all I have of him. It's empty, isn't it. It's okay. It's okay.",
+            pick("Keep it", (-5, 0, 5)),
+            pick("Give it back", (5, 0, -5)).takes(Flask),
+        )
+        .requires(Flask)
+        .after(Flask, 5),
+        card(
+            "officer_cat_sick",
+            Officer,
+            Unannounced,
+            "Your cat ate my sandwich. Then threw it up on your files. In the shape of a three. And two ones. I cleaned it.",
+            pick("Feed the cat", (0, 0, -5)),
+            pick("Study the stain", (-5, 10, 5)),
+        )
+        .requires(Cat),
+        // ---------- Ostrowski: you're bad for business ----------
+        card(
+            "owner_tourists",
+            HotelOwner,
+            Unannounced,
+            "Since your face is in the papers, tourists ask for 1313 by name. They photograph the carpet. Make it stop.",
+            pick("Not my problem", (-10, 0, 0)),
+            pick("Post an officer", (5, 0, 10)),
+        ),
+        card(
+            "owner_elevator_sign",
+            HotelOwner,
+            Unannounced,
+            "I took the 13 off the elevator. Guests use the stairs now. They count the floors aloud. Some count fourteen.",
+            pick("Put it back", (5, -5, 5)),
+            pick("Count them yourself", (-5, 10, 5)),
+        ),
+        card(
+            "owner_lawyer",
+            HotelOwner,
+            Summoned,
+            "My lawyer calls your investigation a 'reputational tort'. I don't know what that is. I hate it all the same.",
+            pick("Call his bluff", (10, 0, 10)),
+            pick("Promise discretion", (-5, 0, -5)),
+        ),
+        card(
+            "owner_flask",
+            HotelOwner,
+            Unannounced,
+            "You smell of rye. In MY lobby. In front of the PRESS. Do you know what they'll write?",
+            pick("Hide the flask", (5, 0, 5)),
+            pick("Offer him a sip", (-10, 5, -5)),
+        )
+        .requires(Flask),
+        // ---------- Vera: this case is her ticket ----------
+        card(
+            "reporter_hero",
+            Reporter,
+            Unannounced,
+            "Front page: haunted room, heroic cop. That's you. In return you call me first. Always. Deal?",
+            pick("Find another hero", (-5, 0, 0)),
+            pick("Deal", (15, 0, 10)),
+        ),
+        card(
+            "reporter_recorder",
+            Reporter,
+            Unannounced,
+            "Oops, I left my recorder on your desk. Don't touch it. It's... charging.",
+            pick("Throw it out", (0, 0, 5)),
+            pick("Leave it be", (5, 0, -5)).gives(Recorder),
+        )
+        .excludes(Recorder),
+        card(
+            "reporter_book",
+            Reporter,
+            Summoned,
+            "A publisher wants my book on 1313. I've written the ending: you die. Unless you give me a better one.",
+            pick("Let me die in print", (-10, 0, -5)),
+            pick("Give her a quote", (10, 5, 5)),
+        ),
+        card(
+            "reporter_cat",
+            Reporter,
+            Unannounced,
+            "A shot of you with the cat. 'The Detective and the Cat That Saw Too Much.' Readers will die.",
+            pick("No pictures", (-5, 0, 0)),
+            pick("Smile", (10, 5, 5)),
+        )
+        .requires(Cat),
+        card(
+            "reporter_tape_voice",
+            Reporter,
+            Summoned,
+            "My recorder caught something at 3:13 last night. A voice, saying your name. Can I have it back? Please?",
+            pick("Keep it", (-5, 10, 5)),
+            pick("Give it back", (5, -5, -5)).takes(Recorder),
+        )
+        .requires(Recorder)
+        .after(Recorder, 3),
+        // ---------- Quill: kind, and keeping score ----------
+        card(
+            "occultist_tea",
+            Occultist,
+            Unannounced,
+            "Chamomile, valerian, a pinch of ash from the room. For your sleep. Also, sign this permit to dig up your basement.",
+            pick("No permits", (0, 5, 5)),
+            pick("Drink, and sign", (-10, 5, -10)),
+        ),
+        card(
+            "occultist_borrow_cat",
+            Occultist,
+            Unannounced,
+            "What a magnificent cat. A natural medium. May I borrow her? Only for a night. Or a decade.",
+            pick("She stays", (0, -5, 5)),
+            pick("Lend him the cat", (-5, 10, -5)).takes(Cat),
+        )
+        .requires(Cat),
+        card(
+            "occultist_book",
+            Occultist,
+            Summoned,
+            "I'm writing the definitive work on 1313. You'll be in the acknowledgments. Small print. Tell me everything.",
+            pick("Not a word", (0, -5, 5)),
+            pick("Everything", (-5, 10, 0)),
+        ),
+        card(
+            "occultist_honest",
+            Occultist,
+            Unannounced,
+            "I'll be honest. I like you. You're useful. In that order. Stop going to the hotel alone.",
+            pick("I go where I want", (5, 5, 10)),
+            pick("Take him along", (-5, 5, -5)),
+        ),
+        // ---------- Pruitt: it's all connected ----------
+        card(
+            "pruitt_pigeons",
+            Conspiracist,
+            Unannounced,
+            "Pigeons aren't real, detective. Drones. And every one of them flies over the Lumen at 3:13. Check my math!",
+            pick("Get out", (5, -5, 5)),
+            pick("Check his math", (-10, 5, -5)),
+        ),
+        card(
+            "pruitt_hat",
+            Conspiracist,
+            Unannounced,
+            "I made you a hat. Aluminum, triple-layered. Blocks the room's signal. Fifty bucks. Friend price.",
+            pick("No hat", (0, -5, 5)),
+            pick("Wear the hat", (-15, -10, -5)),
+        ),
+        card(
+            "pruitt_recorder",
+            Conspiracist,
+            Unannounced,
+            "That's a RECORDER! Who's recording you?! THEM! Give it here, I'll find out who!",
+            pick("It's Vera's", (0, 0, 5)),
+            pick("Give it to him", (-5, 5, -5)).takes(Recorder),
+        )
+        .requires(Recorder),
+        card(
+            "pruitt_pamphlets",
+            Conspiracist,
+            Unannounced,
+            "Those pamphlets! The church is a front! For WHAT? For a BIGGER church! Wake up!",
+            pick("Bin them", (0, -5, 5)).takes(Pamphlets),
+            pick("Read them with him", (-10, 5, -5)),
+        )
+        .requires(Pamphlets),
+        // ---------- Brother Josiah: loud, sure, wrong ----------
+        card(
+            "fanatic_pamphlets",
+            Fanatic,
+            Unannounced,
+            "Two hundred pamphlets! Hand them out at the precinct! The Last Hour is NIGH! Also, bingo on Thursday.",
+            pick("No pamphlets", (5, -5, 5)),
+            pick("Take a stack", (-5, 5, -5)).gives(Pamphlets),
+        )
+        .excludes(Pamphlets),
+        card(
+            "fanatic_cat",
+            Fanatic,
+            Unannounced,
+            "THE CAT! A familiar of the Serpent! Look into its eyes! ...Aww. No. Focus. EVIL!",
+            pick("Hide the cat", (0, -5, 5)),
+            pick("Let him pet it", (-5, 5, -10)),
+        )
+        .requires(Cat),
+        card(
+            "fanatic_rye",
+            Fanatic,
+            Unannounced,
+            "I smell the Devil's rye on you! ...Is it the good stuff? Hand it over. For confiscation. Purposes.",
+            pick("Not a drop", (5, 0, 5)),
+            pick("Hand it over", (-5, -5, -5)).takes(Flask),
+        )
+        .requires(Flask),
+        card(
+            "fanatic_car",
+            Fanatic,
+            Unannounced,
+            "I painted REPENT on your car. I meant to paint it on the hotel. They look alike in the dark.",
+            pick("Arrest him", (5, 0, 10)),
+            pick("Repent, then", (-10, 5, -10)),
+        ),
+        // ---------- Holloway's plaque: an honor nobody asked for ----------
+        card(
+            "officer_plaque",
+            Officer,
+            Summoned,
+            "I made you Employee of the Month. Made the plaque myself. For the toenail work. Don't thank me. Okay, thank me.",
+            pick("This isn't a thing", (0, -5, 0)),
+            pick("Hang it up", (-5, 0, -5)).gives(Plaque),
+        )
+        .excludes(Plaque),
+        card(
+            "owner_plaque",
+            HotelOwner,
+            Unannounced,
+            "May I borrow your plaque for the lobby? 'Employee of the Month' is the nicest thing said near 1313 in a century.",
+            pick("It's mine", (5, 0, 0)),
+            pick("Lend it to him", (-5, 0, -5)).takes(Plaque),
+        )
+        .requires(Plaque),
+        card(
+            "reporter_plaque",
+            Reporter,
+            Unannounced,
+            "'PRECINCT HONORS TOENAIL.' Page six. Smile, detective. Or don't. Honestly, it's funnier if you don't.",
+            pick("No comment", (-10, 0, 0)),
+            pick("Pose with it", (5, 0, 5)),
+        )
+        .requires(Plaque),
+        card(
+            "fanatic_plaque",
+            Fanatic,
+            Unannounced,
+            "A golden IDOL on your desk! 'Of the Month'? WHICH month? Do you even know what month it is, detective?",
+            pick("Throw him out", (5, -5, 5)),
+            pick("...October?", (0, 10, -5)),
+        )
+        .requires(Plaque),
+        // ---------- Ostrowski's voucher: hospitality, weaponized ----------
+        card(
+            "owner_voucher",
+            HotelOwner,
+            Summoned,
+            "A complimentary night in 1313. Nobody's ever complained. Nobody's ever checked out, either. Now leave my lobby.",
+            pick("Tear it up", (5, -5, 0)),
+            pick("Pocket it", (-5, 10, 0)).gives(Voucher),
+        ),
+        card(
+            "officer_voucher",
+            Officer,
+            Unannounced,
+            "Does the free night include breakfast? I'll come with you. I'm not scared. I'll bring a sandwich. Two sandwiches.",
+            pick("Absolutely not", (0, 0, 5)),
+            pick("Bring the sandwiches", (-5, 5, -10)),
+        )
+        .requires(Voucher),
+        card(
+            "reporter_voucher",
+            Reporter,
+            Unannounced,
+            "A free night in 1313? Let me livestream it! You sleep, I narrate. If you die, it's a two-parter. Sweeps week!",
+            pick("Find your own room", (-5, 0, 0)),
+            pick("Hand it over", (15, 0, 0)).takes(Voucher),
+        )
+        .requires(Voucher),
+        card(
+            "pruitt_voucher",
+            Conspiracist,
+            Unannounced,
+            "That voucher's a tracking device. Paper can be a device! Trade me. I'll give you a coupon for my newsletter.",
+            pick("Keep it", (0, -5, 5)),
+            pick("Trade", (-10, 0, -5)).takes(Voucher),
+        )
+        .requires(Voucher),
+        // ---------- Quill's invoice: friendship, itemized ----------
+        card(
+            "occultist_invoice",
+            Occultist,
+            Summoned,
+            "For services rendered: one consultation, two blessings, a mild exorcism of your car. Friend price: $1,313.",
+            pick("I'm not paying", (5, -5, 5)),
+            pick("Put it on my tab", (-5, 5, -5)).gives(Invoice),
+        ),
+        card(
+            "officer_invoice",
+            Officer,
+            Summoned,
+            "Accounting sent your invoice back. 'Exorcism' isn't a budget line. They suggest 'vehicle maintenance'.",
+            pick("Fight accounting", (5, 0, 10)),
+            pick("Vehicle maintenance", (-5, 0, -5)),
+        )
+        .requires(Invoice),
+        card(
+            "fanatic_invoice",
+            Fanatic,
+            Unannounced,
+            "SIMONY! Selling blessings for coin! Give me that bill, I'll burn it! ...$1,313? For a car? Is he taking new clients?",
+            pick("Keep it", (0, 0, 5)),
+            pick("Let him burn it", (-5, -5, -5)).takes(Invoice),
+        )
+        .requires(Invoice),
+        card(
+            "occultist_late_fee",
+            Occultist,
+            Unannounced,
+            "About my invoice. I added interest. And a late fee. And a fee for this reminder. We're friends. You understand.",
+            pick("Friends don't invoice", (5, -5, 10)),
+            pick("Pay him", (-10, 0, -10)).takes(Invoice),
+        )
+        .requires(Invoice)
+        .after(Invoice, 6),
+        // ---------- The Agent: rare, and it never gets easier ----------
+        card(
+            "agent_partner",
+            Agent,
+            Unannounced,
+            "My partner went into 1313 in '87. Best man I ever knew. I still pour two cups of coffee in the morning.",
+            pick("Say nothing", (0, -5, -10)),
+            pick("Ask his name", (0, 10, -5)),
+        )
+        .requires(EReader)
+        .after(EReader, 18),
+        card(
+            "agent_daughter",
+            Agent,
+            Unannounced,
+            "My daughter asked what I do. I said I make sure bad things stay forgotten. She asked who remembers them.",
+            pick("No one", (0, -10, -10)),
+            pick("I do", (0, 10, -5)),
+        )
+        .requires(EReader)
+        .after(EReader, 35),
+        card(
+            "agent_letter",
+            Agent,
+            Unannounced,
+            "If you ever find a man named Eli Navarro in there, tell him I kept looking. Tell him I'm sorry I stopped.",
+            pick("I can't promise", (5, -5, -10)),
+            pick("I'll tell him", (0, 10, -5)),
+        )
+        .requires(EReader)
+        .after(EReader, 55),
     ]
 }

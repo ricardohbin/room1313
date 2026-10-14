@@ -188,8 +188,8 @@ The "held N rounds" waits make you live with each step before the next.
 
 **Balance target**, checked by the `the_quest_can_be_won` test: a bot plays the
 real deck over 300 shuffles. It takes every quest step it can survive, and
-otherwise steers each attribute back toward 50. It wins about **72%** of games,
-after about **68 cards**. Most deaths are Arousal-high, after fame and between
+otherwise steers each attribute back toward 50. It wins about **73%** of games,
+after about **113 cards** (68 before the filler cards). Most deaths are Arousal-high, after fame and between
 immersions. The test fails if the win rate drops under 50% or the average
 length leaves 25–150 cards. Rerun it after changing numbers:
 `cargo test the_quest -- --nocapture`.
@@ -199,3 +199,34 @@ open on a blinding light. Inside: no room, only a golden serpent biting its own
 tail (358: Nachash and Mashiach). At its heart you face someone made of light,
 in your shape. *Serpent or messiah: it wore your face, and it smiled.* The
 newspaper: **DETECTIVE VANISHES**. Next October 13th, room 1313 is already booked.
+
+### Filler cards and side items (`src/cards.rs`, "Fillers")
+
+About 30 cards that don't move the quest. They make the game longer and give each
+character a voice. Every one is a trade-off: on average, a filler choice moves
+each attribute by less than 1.1 point, so none of them pushes you toward a
+particular ending.
+
+| Character | Archetype | Examples |
+|---|---|---|
+| Sgt. Holloway | Useless clues, delivered too closely | a wig hair he wants you to smell, egg salad at the crime scene, a toenail with a lost label |
+| Mr. Ostrowski | Hates the attention you bring | tourists photographing the carpet, his lawyer's "reputational tort", the 13 taken off the elevator |
+| Vera Kask | Riding the case to fame | "hero cop" front page, a book where you die unless you give her a better ending |
+| Ambrose Quill | Kind, and keeping score | a sleeping tea, and a permit to dig up your basement. "I like you. You're useful. In that order." |
+| Dale Pruitt, Brother Josiah | Loud, sure, wrong | pigeons are drones, a tinfoil hat for fifty bucks, REPENT painted on the wrong car |
+| The Agent | Rare, and sad | Three late cards, each shown once, after you've held the e-reader for 18, 35 and 55 rounds: a partner lost in 1987, a daughter's question, a name to pass on |
+
+**Side items** are useless to the quest, but other characters react to them:
+
+| Item | From | Who reacts |
+|---|---|---|
+| Mrs. Pell's cat | Holloway ("it won't stop staring at your desk") | Holloway (sandwich, vomit in the shape of 3-1-1), Vera (photo op), Quill (wants to borrow her "for a decade"), Josiah ("a familiar! ...aww") |
+| A dead man's flask | Holloway's late uncle | Ostrowski (rye in his lobby), Josiah ("for confiscation purposes"), Holloway asks for it back |
+| Vera's recorder | Vera "forgets" it on your desk | Pruitt (who's recording you?!), Vera (it caught a voice at 3:13) |
+| The Last Hour pamphlets | Josiah | Pruitt (the church is a front for a bigger church) |
+| Employee of the Month | Holloway made you a plaque himself, for the toenail | Ostrowski (wants it for his lobby), Vera ("PRECINCT HONORS TOENAIL", page six), Josiah ("an IDOL! Which month? Do you even know?") |
+| A free night in 1313 | Ostrowski ("nobody's ever checked out, either; now leave my lobby") | Holloway (does it include breakfast? he'll bring two sandwiches), Vera (livestream it: "if you die, it's a two-parter"), Pruitt (paper can be a tracking device) |
+| Quill's invoice | Quill: a mild exorcism of your car, friend price $1,313 | Holloway (accounting suggests "vehicle maintenance"), Josiah ("SIMONY! ...is he taking new clients?"), Quill again later (interest, a late fee, and a fee for the reminder) |
+
+The cards that hand out a side item don't come up while you already hold it.
+
