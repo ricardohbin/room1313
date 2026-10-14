@@ -31,6 +31,7 @@ use crate::view::window;
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
+    show_version();
     // Each game draws its cards in a different order.
     let seed = (js_sys::Math::random() * u64::MAX as f64) as u64;
     // Preview an ending with `#ending=<name>` (see `Ending::name`): New Game plays it.
@@ -52,6 +53,23 @@ pub fn start() -> Result<(), JsValue> {
         None if skip_intro => deal(engine),
         None => intro::play("app", move || deal(engine)),
     })
+}
+
+/// Build version: `make` sets `ROOM_VERSION` (crate version + commit count).
+const VERSION: &str = match option_env!("ROOM_VERSION") {
+    Some(v) => v,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
+/// Puts the build version in a faint label in the corner of the page.
+fn show_version() {
+    let Some(body) = window().document().and_then(|d| d.body().map(|b| (d, b))) else { return };
+    let (doc, body) = body;
+    if let Ok(el) = doc.create_element("div") {
+        el.set_id("version");
+        el.set_text_content(Some(&format!("v{VERSION}")));
+        let _ = body.append_child(&el);
+    }
 }
 
 /// Starts the card game; when an attribute breaks, its ending plays,
