@@ -11,7 +11,7 @@ Written in Rust, compiled to WebAssembly, and running in your browser. The
 pixel art and every note of the music are generated in code: no image or audio
 files.
 
-![The intro: the case lands on your desk](docs/screenshots/intro.png)
+![ROOM 1313](docs/screenshots/title.png)
 
 ## The game
 
@@ -29,7 +29,7 @@ Push any of them to 0 or 100 and you get one of **six game-over cinematics**,
 each with its own score: noir lament, thrash metal, psychobilly, a broken music
 box, a requiem, and hardcore punk that stops dead when you hit the floor.
 
-<p align="center"><img src="docs/screenshots/card.png" width="420" alt="Mrs. Celeste Moreau, the prophet"></p>
+<p align="center"><img src="docs/screenshots/card.png" width="420" alt="Sgt. Otis Holloway brings you the evidence"></p>
 
 Keep your balance and the real case opens up. Sgt. Holloway hands you a broken
 e-reader. A shadow whispers. Then come a podcast, an occultist with a door under
@@ -41,7 +41,7 @@ the publicity, a reporter riding the case to fame, an occultist who'll invoice
 you for an exorcism, two loud idiots with theories, and an Agent you'll wish
 you'd never met. Also, a cat.
 
-![The truth](docs/screenshots/ending.png)
+![October 13th, the city in the rain](docs/screenshots/city.png)
 
 ## Play it
 
