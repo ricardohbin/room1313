@@ -20,16 +20,19 @@ pub enum Ending {
     Institutionalization,
     Coma,
     FatalOverload,
+    /// Not a loss: you survived the road to the truth (see `cards.rs`).
+    Truth,
 }
 
 impl Ending {
-    pub const ALL: [Ending; 6] = [
+    pub const ALL: [Ending; 7] = [
         Ending::Dismissal,
         Ending::Assassination,
         Ending::FatalHaunting,
         Ending::Institutionalization,
         Ending::Coma,
         Ending::FatalOverload,
+        Ending::Truth,
     ];
 
     /// Short name, as used in the `#ending=<name>` preview link.
@@ -41,6 +44,7 @@ impl Ending {
             Ending::Institutionalization => "institution",
             Ending::Coma => "coma",
             Ending::FatalOverload => "overload",
+            Ending::Truth => "truth",
         }
     }
 
@@ -68,6 +72,7 @@ impl Ending {
             Ending::Institutionalization => &INSTITUTION,
             Ending::Coma => &COMA,
             Ending::FatalOverload => &OVERLOAD,
+            Ending::Truth => &TRUTH,
         }
     }
 }
@@ -263,6 +268,38 @@ const OVERLOAD_SCENES: [Scene; 3] = [
     Scene::new(
         Shot::Document(Doc::Overload),
         &["Cause of death: cardiac arrest. Age: too young.", "FATAL OVERLOAD"],
+        1600.0,
+    )
+    .sync(|m, prev, now| {
+        if crossed(prev, now, STAMP_AT) {
+            m.knock(0.6);
+        }
+    }),
+];
+
+// ---------- The truth ----------
+
+static TRUTH: Film = Film { scenes: &TRUTH_SCENES, score: |m| m.score(Score::Revelation) };
+
+const TRUTH_SCENES: [Scene; 3] = [
+    Scene::new(
+        Shot::Threshold,
+        &["The shadow led you up to the thirteenth floor.", "The door of 1313 was open. It always had been."],
+        2000.0,
+    )
+    .cue(|m| m.hum(0.02, 2.0)),
+    Scene::new(
+        Shot::Revelation,
+        &["Inside, no room. Only the serpent, biting its own tail.", "Serpent or messiah: it wore your face, and it smiled."],
+        2500.0,
+    )
+    .cue(|m| {
+        m.hum(0.0, 1.0);
+        m.boom();
+    }),
+    Scene::new(
+        Shot::Document(Doc::Truth),
+        &["Next October 13th, room 1313 is already booked.", "THE TRUTH"],
         1600.0,
     )
     .sync(|m, prev, now| {

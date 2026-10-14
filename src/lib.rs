@@ -25,7 +25,7 @@ mod view;
 use wasm_bindgen::prelude::*;
 
 use crate::endings::Ending;
-use crate::engine::{Engine, Inventory};
+use crate::engine::{Engine, Inventory, Outcome};
 use crate::view::window;
 
 #[wasm_bindgen(start)]
@@ -33,13 +33,19 @@ pub fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     // Each game draws its cards in a different order.
     let seed = (js_sys::Math::random() * u64::MAX as f64) as u64;
-    let engine = Engine::new(cards::deck(), cards::START, Inventory::of(cards::START_ITEMS), seed)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
     // Preview an ending with `#ending=<name>` (see `Ending::name`): New Game plays it.
-    // `#cards` skips the intro and deals straight away.
+    // `#cards` skips the intro and deals straight away; `#card=<id>` also starts
+    // on that card, with the items it needs already in hand.
     let hash = window().location().hash().unwrap_or_default();
     let preview = hash.strip_prefix("#ending=").and_then(Ending::from_name);
-    let skip_intro = hash == "#cards";
+    let first = hash.strip_prefix("#card=");
+    let deck = cards::deck();
+    let (start, items) = match first.and_then(|id| deck.iter().find(|s| s.id == id)) {
+        Some(scene) => (scene.id.clone(), Inventory::of(&scene.requires)),
+        None => (cards::START.to_string(), Inventory::of(cards::START_ITEMS)),
+    };
+    let engine = Engine::new(deck, &start, items, seed).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let skip_intro = hash == "#cards" || first.is_some();
     splash::mount("app", move || match preview {
         Some(ending) => endings::play(ending, "app", back_to_title),
         None if skip_intro => deal(engine),
@@ -47,10 +53,17 @@ pub fn start() -> Result<(), JsValue> {
     })
 }
 
-/// Starts the card game; when an attribute breaks, its ending plays.
+/// Starts the card game; when an attribute breaks, its ending plays,
+/// and when you learn the truth, the true ending.
 fn deal(engine: Engine) {
-    let on_loss = |stat, extreme| endings::play(Ending::of(stat, extreme), "app", back_to_title);
-    if let Err(e) = view::mount(engine, "app", on_loss) {
+    let on_end = |outcome| {
+        let ending = match outcome {
+            Outcome::Loss(stat, extreme) => Ending::of(stat, extreme),
+            Outcome::Truth => Ending::Truth,
+        };
+        endings::play(ending, "app", back_to_title)
+    };
+    if let Err(e) = view::mount(engine, "app", on_end) {
         web_sys::console::error_1(&e);
     }
 }

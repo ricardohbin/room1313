@@ -52,6 +52,18 @@ Full recipe and conventions: `CINEMATICS.md`.
 Verified by screenshots in headless Chrome (no console errors). Not verified:
 audio by ear, Escape-to-skip.
 
+## Main quest (added 2026-10-13, draft)
+
+The road to the truth is in GAME.md ("The Road to the Truth") and `cards.rs`.
+New cast: Sgt. Otis Holloway (gives the e-reader on the first card; dull
+recurring news), a shadow, Mrs. Celeste Moreau (prophet). New items: dream →
+occult subcelebrity → access to the underworld → first/second immersion →
+redemption → the shadow's finale choice → `Ending::Truth`. Engine support:
+`Scene::excludes`, `after(item, rounds)`, `weight`, `until(item)` (repeat until
+accepted), `Choice::finale`, `Engine::outcome() -> Outcome::{Loss, Truth}`.
+START_ITEMS is now empty. Balance is checked by a bot simulation test
+(`the_quest_can_be_won`): about 72% wins, about 68 cards. Dev link: `#card=<id>`.
+
 ## Cards (added 2026-10-13, draft)
 
 - **Attributes** live in `engine.rs`: `Stat` (Reputation, Sensitivity, Arousal),

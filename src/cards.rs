@@ -4,58 +4,82 @@
 //! After the first card, the next one is drawn at random from the cards whose
 //! required items you hold. Unique characters' cards show only once; recurring
 //! characters keep coming back.
+//!
+//! The main quest (GAME.md, "The road to the truth") is a chain of items, each
+//! unlocking the next character; quest cards keep coming back (`Scene::until`)
+//! until you accept what they offer.
 
 use crate::engine::{Choice, Effect, Scene};
 
-pub const START: &str = "owner_key";
-/// What's on your desk when the case lands on it.
-pub const START_ITEMS: &[Item] = &[Item::EReader];
+pub const START: &str = "officer_ereader";
+/// What's on your desk when the case lands on it: nothing yet. Holloway brings the e-reader.
+pub const START_ITEMS: &[Item] = &[];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Character {
+    Officer,
     HotelOwner,
     Reporter,
     Occultist,
     Conspiracist,
     Fanatic,
     Agent,
+    Shadow,
+    Prophet,
 }
 
 impl Character {
-    pub const ALL: [Character; 6] = [
+    pub const ALL: [Character; 9] = [
+        Character::Officer,
         Character::HotelOwner,
         Character::Reporter,
         Character::Occultist,
         Character::Conspiracist,
         Character::Fanatic,
         Character::Agent,
+        Character::Shadow,
+        Character::Prophet,
     ];
 
     pub fn name(self) -> &'static str {
         match self {
+            Character::Officer => "Sgt. Otis Holloway",
             Character::HotelOwner => "Mr. Ostrowski",
             Character::Reporter => "Vera Kask",
             Character::Occultist => "Ambrose Quill",
             Character::Conspiracist => "Dale Pruitt",
             Character::Fanatic => "Brother Josiah",
             Character::Agent => "The Agent",
+            Character::Shadow => "A shadow",
+            Character::Prophet => "Mrs. Celeste Moreau",
         }
     }
 
     pub fn role(self) -> &'static str {
         match self {
+            Character::Officer => "Your sergeant",
             Character::HotelOwner => "Owner, Hotel Lumen",
             Character::Reporter => "The Evening Star",
             Character::Occultist => "Occult investigator",
             Character::Conspiracist => "Independent researcher",
             Character::Fanatic => "Church of the Last Hour",
             Character::Agent => "Agency withheld",
+            Character::Shadow => "Not on any list",
+            Character::Prophet => "Prophet",
         }
     }
 
     /// Recurring characters keep turning up; the others' cards show once each.
     pub fn recurring(self) -> bool {
-        matches!(self, Character::Reporter | Character::Conspiracist | Character::Fanatic)
+        matches!(
+            self,
+            Character::Officer
+                | Character::Reporter
+                | Character::Conspiracist
+                | Character::Fanatic
+                | Character::Shadow
+                | Character::Prophet
+        )
     }
 }
 
@@ -84,10 +108,30 @@ pub enum Item {
     Tapes,
     Amulet,
     AgentCard,
+    // The main quest, in order.
+    Dream,
+    Fame,
+    Underworld,
+    FirstImmersion,
+    SecondImmersion,
+    Redemption,
 }
 
 impl Item {
-    pub const ALL: [Item; 6] = [Item::EReader, Item::RoomKey, Item::Negatives, Item::Tapes, Item::Amulet, Item::AgentCard];
+    pub const ALL: [Item; 12] = [
+        Item::EReader,
+        Item::RoomKey,
+        Item::Negatives,
+        Item::Tapes,
+        Item::Amulet,
+        Item::AgentCard,
+        Item::Dream,
+        Item::Fame,
+        Item::Underworld,
+        Item::FirstImmersion,
+        Item::SecondImmersion,
+        Item::Redemption,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -97,12 +141,18 @@ impl Item {
             Item::Tapes => "Pruitt's tapes",
             Item::Amulet => "Quill's amulet",
             Item::AgentCard => "A blank card",
+            Item::Dream => "A dream",
+            Item::Fame => "Occult subcelebrity",
+            Item::Underworld => "Access to the underworld",
+            Item::FirstImmersion => "First immersion",
+            Item::SecondImmersion => "Second immersion",
+            Item::Redemption => "Redemption",
         }
     }
 }
 
 fn card(id: &str, who: Character, arrival: Arrival, text: &str, left: Choice, right: Choice) -> Scene {
-    Scene { id: id.into(), who, arrival, text: text.into(), requires: Vec::new(), left, right }
+    Scene::new(id, who, arrival, text, left, right)
 }
 
 /// A choice: label, then (reputation, sensitivity, arousal).
@@ -115,6 +165,207 @@ pub fn deck() -> Vec<Scene> {
     use Character::*;
     use Item::*;
     vec![
+        // ---------- Sgt. Holloway (recurring): the e-reader, then nothing but dull news ----------
+        card(
+            "officer_ereader",
+            Officer,
+            Summoned,
+            "Evidence from 1313, detective. Just the e-reader. Battery's dead, screen's still on. Where do you want it?",
+            pick("In my drawer", (0, 5, 0)).gives(EReader),
+            pick("Switch it on", (0, 10, 5)).gives(EReader),
+        ),
+        card(
+            "officer_lab",
+            Officer,
+            Summoned,
+            "Lab's back. The yellow powder is sulfur. Regular sulfur. They want to know if you need that in triplicate.",
+            pick("File it", (5, -5, -5)),
+            pick("Triplicate", (5, -5, -10)),
+        ),
+        card(
+            "officer_canvass",
+            Officer,
+            Summoned,
+            "Canvassed the whole block. Nobody saw anything. Mrs. Pell says her cat's been acting funny. That's it.",
+            pick("Thank Mrs. Pell", (5, -5, -5)),
+            pick("Ask about the cat", (-5, 10, 0)),
+        ),
+        card(
+            "officer_meter",
+            Officer,
+            Summoned,
+            "Two parking tickets on the hotel van. Same night, same minute: 3:13. Probably a broken meter.",
+            pick("Broken meter", (0, -5, -5)),
+            pick("Pull the meter", (-5, 10, 5)),
+        ),
+        card(
+            "officer_coffee",
+            Officer,
+            Unannounced,
+            "Machine's broken again. I made a pot in the evidence room. Don't tell the captain. Want some?",
+            pick("No, thanks", (0, 0, -5)),
+            pick("Black, please", (0, 0, 10)),
+        ),
+        card(
+            "officer_return",
+            Officer,
+            Unannounced,
+            "Evidence sent the e-reader back. Again. Nobody signed for it. It was just... on your desk.",
+            pick("Lock it away", (0, 5, 0)).gives(EReader),
+            pick("Keep it close", (0, 10, 5)).gives(EReader),
+        )
+        .until(EReader),
+        card(
+            "officer_home",
+            Officer,
+            Unannounced,
+            "Somebody keyed your car. Somebody else left flowers on it. I'll take your calls today. Go home. Sleep.",
+            pick("I can't", (0, 0, 10)),
+            pick("Go home", (-5, -10, -10)),
+        )
+        .requires(Fame),
+        // ---------- The road to the truth: the shadow ----------
+        card(
+            "shadow_whisper",
+            Shadow,
+            Unannounced,
+            "...you carry its eye... close yours... and I will show you the room... as it was before...",
+            pick("Turn on every light", (0, -10, 5)),
+            pick("Close your eyes", (0, 15, -10)).gives(Dream),
+        )
+        .requires(EReader)
+        .after(EReader, 2)
+        .until(Dream)
+        .weight(3),
+        // ---------- The road to the truth: on air ----------
+        card(
+            "reporter_podcast",
+            Reporter,
+            Unannounced,
+            "I've started a podcast: Room 1313 After Dark. Word is you dream about the room. Come on the show.",
+            pick("No comment", (-5, 0, 5)),
+            pick("Go on air", (15, 10, 10)).gives(Fame),
+        )
+        .requires(Dream)
+        .after(Dream, 4)
+        .until(Fame)
+        .weight(3),
+        // Fame draws fire: the fanatic, Pruitt and the Agent come for you.
+        card(
+            "fanatic_heretic",
+            Fanatic,
+            Unannounced,
+            "Heretic! You spoke HIS number on the radio! My flock will stand outside your house tonight. Every night.",
+            pick("Arrest him", (10, 0, 15)),
+            pick("Let them pray", (-10, 10, -5)),
+        )
+        .requires(Fame),
+        card(
+            "fanatic_door",
+            Fanatic,
+            Unannounced,
+            "We painted the serpent on your door. So He passes over you. Or so He finds you. Kneel with us.",
+            pick("Scrub the door", (0, -10, 10)),
+            pick("Kneel", (-15, 15, 0)),
+        )
+        .requires(Fame),
+        card(
+            "pruitt_episode",
+            Conspiracist,
+            Unannounced,
+            "Episode thirteen! You said 'mouth'! That's a code word! The van's outside YOUR place now. Let me move in!",
+            pick("Get out", (5, -5, 15)),
+            pick("Hear his theory", (-10, 10, 5)),
+        )
+        .requires(Fame),
+        card(
+            "pruitt_leak",
+            Conspiracist,
+            Unannounced,
+            "I gave my listeners your home address. For your protection! Total transparency, detective!",
+            pick("Arrest him", (5, 0, 15)),
+            pick("Thank him", (-15, 5, 0)),
+        )
+        .requires(Fame),
+        card(
+            "agent_radio",
+            Agent,
+            Unannounced,
+            "You talk too much on the radio. Accidents happen to people who talk too much.",
+            pick("Is that a threat?", (10, 0, 20)),
+            pick("Quit the show", (-15, -10, -5)),
+        )
+        .requires(Fame),
+        card(
+            "agent_tail",
+            Agent,
+            Unannounced,
+            "We've had a car on you for six days. Tomorrow, it won't be one of ours.",
+            pick("Lose the tail", (5, 0, 15)),
+            pick("Ask for protection", (-15, -5, -5)),
+        )
+        .requires(Fame),
+        // ---------- The road to the truth: below ----------
+        card(
+            "occultist_truth",
+            Occultist,
+            Unannounced,
+            "The whole city heard you on the radio. So did it. You want the truth? There's a door under the city. I have the key.",
+            pick("I'm a cop, Quill", (5, -10, 0)),
+            pick("Show me the door", (-10, 15, 5)).gives(Underworld),
+        )
+        .requires(Fame)
+        .after(Fame, 6)
+        .until(Underworld)
+        .weight(3),
+        // The prophet's three immersions: each one costs dearly, and they're the only way on.
+        card(
+            "prophet_first",
+            Prophet,
+            Unannounced,
+            "You've been below. I can tell. Lie down in the water with me, detective. Let it show you. It will hurt.",
+            pick("Not tonight", (0, -5, 0)),
+            pick("Go under", (0, 15, -15)).gives(FirstImmersion),
+        )
+        .requires(Underworld)
+        .excludes(SecondImmersion)
+        .excludes(Redemption)
+        .until(FirstImmersion)
+        .weight(3),
+        card(
+            "prophet_second",
+            Prophet,
+            Summoned,
+            "You came back. Most don't. The second time, it learns your name. Shall we?",
+            pick("Not yet", (0, -5, 0)),
+            pick("Go under again", (0, 20, -15)).takes(FirstImmersion).gives(SecondImmersion),
+        )
+        .requires(FirstImmersion)
+        .after(FirstImmersion, 3)
+        .until(SecondImmersion)
+        .weight(3),
+        card(
+            "prophet_third",
+            Prophet,
+            Summoned,
+            "The third time, nobody comes back the same. That's the point. Are you ready to be forgiven?",
+            pick("Not yet", (0, -5, 0)),
+            pick("The last time", (0, 20, -20)).takes(SecondImmersion).gives(Redemption),
+        )
+        .requires(SecondImmersion)
+        .after(SecondImmersion, 3)
+        .until(Redemption)
+        .weight(3),
+        card(
+            "shadow_truth",
+            Shadow,
+            Unannounced,
+            "...three times you went under... and came back... do you want to know the truth?",
+            pick("Not yet", (0, 5, 5)),
+            pick("Tell me", (0, 0, 0)).finale(),
+        )
+        .requires(Redemption)
+        .weight(5),
         // ---------- The hotel owner (unique) ----------
         card(
             "owner_key",

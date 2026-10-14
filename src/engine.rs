@@ -96,6 +96,13 @@ impl Stats {
     }
 }
 
+/// How a game ends: an attribute broke, or you learned the truth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Loss(Stat, Extreme),
+    Truth,
+}
+
 /// How a choice shifts each attribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Effect([i32; 3]);
@@ -151,11 +158,18 @@ pub struct Choice {
     /// Items you get, and items you lose, by making this choice.
     pub gives: Vec<Item>,
     pub takes: Vec<Item>,
+    /// Taking this choice ends the game with the truth.
+    pub finale: bool,
 }
 
 impl Choice {
     pub fn new(label: &str, effect: Effect) -> Self {
-        Self { label: label.into(), effect, gives: Vec::new(), takes: Vec::new() }
+        Self { label: label.into(), effect, gives: Vec::new(), takes: Vec::new(), finale: false }
+    }
+
+    pub fn finale(mut self) -> Self {
+        self.finale = true;
+        self
     }
 
     pub fn gives(mut self, item: Item) -> Self {
@@ -188,11 +202,35 @@ pub struct Scene {
     pub text: String,
     /// The card can only be drawn while you hold all of these.
     pub requires: Vec<Item>,
+    /// ...and none of these.
+    pub excludes: Vec<Item>,
+    /// ...and only once you've held this item for this many rounds.
+    pub wait: Option<(Item, u32)>,
+    /// How likely it is to be drawn against the other cards (1 = normal).
+    pub weight: u32,
+    /// Overrides the character's `recurring` (see `once`).
+    pub repeats: Option<bool>,
     pub left: Choice,
     pub right: Choice,
 }
 
 impl Scene {
+    pub fn new(id: &str, who: Character, arrival: Arrival, text: &str, left: Choice, right: Choice) -> Self {
+        Self {
+            id: id.into(),
+            who,
+            arrival,
+            text: text.into(),
+            requires: Vec::new(),
+            excludes: Vec::new(),
+            wait: None,
+            weight: 1,
+            repeats: None,
+            left,
+            right,
+        }
+    }
+
     pub fn choice(&self, side: Side) -> &Choice {
         match side {
             Side::Left => &self.left,
@@ -205,9 +243,33 @@ impl Scene {
         self
     }
 
+    pub fn excludes(mut self, item: Item) -> Self {
+        self.excludes.push(item);
+        self
+    }
+
+    /// Holds the card back until `item` has been in your hands for `rounds` cards.
+    pub fn after(mut self, item: Item, rounds: u32) -> Self {
+        self.wait = Some((item, rounds));
+        self
+    }
+
+    pub fn weight(mut self, weight: u32) -> Self {
+        self.weight = weight;
+        self
+    }
+
+    /// A quest step: the card keeps coming back until you hold `item`
+    /// (usually because you finally accepted it), whoever is asking.
+    pub fn until(mut self, item: Item) -> Self {
+        self.excludes.push(item);
+        self.repeats = Some(true);
+        self
+    }
+
     /// Cards of recurring characters can come back; the others show only once.
     pub fn once(&self) -> bool {
-        !self.who.recurring()
+        !self.repeats.unwrap_or(self.who.recurring())
     }
 }
 
@@ -256,6 +318,10 @@ pub struct Engine {
     spent: Vec<bool>,
     stats: Stats,
     inventory: Inventory,
+    /// Cards played so far, and the round each item was last gained.
+    round: u32,
+    held_since: [u32; 32],
+    finished: bool,
     rng: Rng,
     history: Vec<(String, Side)>,
 }
@@ -271,11 +337,22 @@ impl Engine {
             .iter()
             .position(|s| s.id == start)
             .ok_or_else(|| EngineError::UnknownStart(start.to_string()))?;
-        if !scenes.iter().any(|s| !s.once() && s.requires.is_empty()) {
+        if !scenes.iter().any(|s| !s.once() && s.requires.is_empty() && s.excludes.is_empty() && s.wait.is_none()) {
             return Err(EngineError::NoFallback);
         }
         let spent = vec![false; scenes.len()];
-        Ok(Self { scenes, current, spent, stats: Stats::default(), inventory, rng: Rng::new(seed), history: Vec::new() })
+        Ok(Self {
+            scenes,
+            current,
+            spent,
+            stats: Stats::default(),
+            inventory,
+            round: 0,
+            held_since: [0; 32],
+            finished: false,
+            rng: Rng::new(seed),
+            history: Vec::new(),
+        })
     }
 
     pub fn current(&self) -> &Scene {
@@ -290,6 +367,14 @@ impl Engine {
         self.inventory
     }
 
+    /// Whether the game is over, and how.
+    pub fn outcome(&self) -> Option<Outcome> {
+        if self.finished {
+            return Some(Outcome::Truth);
+        }
+        self.stats.extreme().map(|(stat, extreme)| Outcome::Loss(stat, extreme))
+    }
+
     /// The attributes as they would be after choosing `side` on the current scene.
     pub fn preview(&self, side: Side) -> Stats {
         self.stats.apply(self.current().choice(side).effect)
@@ -299,6 +384,11 @@ impl Engine {
     pub fn choose(&mut self, side: Side) -> &Scene {
         let choice = self.current().choice(side);
         let (stats, inventory) = (self.stats.apply(choice.effect), choice.apply(self.inventory));
+        self.finished |= choice.finale;
+        self.round += 1;
+        for item in inventory.items().filter(|&i| !self.inventory.has(i)) {
+            self.held_since[item as usize] = self.round;
+        }
         (self.stats, self.inventory) = (stats, inventory);
         self.history.push((self.current().id.clone(), side));
         if self.current().once() {
@@ -314,17 +404,32 @@ impl Engine {
     }
 
     fn can_draw(&self, i: usize) -> bool {
-        !self.spent[i] && self.inventory.has_all(&self.scenes[i].requires)
+        let scene = &self.scenes[i];
+        let held = |item: Item| self.inventory.has(item);
+        !self.spent[i]
+            && self.inventory.has_all(&scene.requires)
+            && !scene.excludes.iter().any(|&item| held(item))
+            && scene.wait.is_none_or(|(item, rounds)| {
+                held(item) && self.round - self.held_since[item as usize] >= rounds
+            })
     }
 
-    /// A random available card, other than the one just played if there's a choice.
+    /// A random available card (by weight), other than the one just played if there's a choice.
     /// `new` checked there's a recurring card needing nothing, so this can't come up empty.
     fn draw(&mut self) -> usize {
         let mut pool: Vec<usize> = (0..self.scenes.len()).filter(|&i| i != self.current && self.can_draw(i)).collect();
         if pool.is_empty() {
             pool.push(self.current);
         }
-        pool[self.rng.below(pool.len())]
+        let total: u32 = pool.iter().map(|&i| self.scenes[i].weight).sum();
+        let mut ticket = self.rng.below(total as usize) as u32;
+        for &i in &pool {
+            if ticket < self.scenes[i].weight {
+                return i;
+            }
+            ticket -= self.scenes[i].weight;
+        }
+        pool[0]
     }
 
     pub fn history(&self) -> &[(String, Side)] {
@@ -337,15 +442,9 @@ mod tests {
     use super::*;
 
     fn scene(id: &str, who: Character) -> Scene {
-        Scene {
-            id: id.into(),
-            who,
-            arrival: Arrival::Summoned,
-            text: "x".into(),
-            requires: Vec::new(),
-            left: Choice::new("no", Effect::new(-30, 0, 0)),
-            right: Choice::new("yes", Effect::new(0, 20, -5)),
-        }
+        let left = Choice::new("no", Effect::new(-30, 0, 0));
+        let right = Choice::new("yes", Effect::new(0, 20, -5));
+        Scene::new(id, who, Arrival::Summoned, "x", left, right)
     }
 
     const RECURRING: Character = Character::Reporter;
@@ -394,6 +493,114 @@ mod tests {
         assert!(seen.iter().filter(|id| *id == "u2").count() <= 1);
         assert!(seen.windows(2).all(|w| w[0] != w[1]), "never the same card twice in a row");
         assert!(seen.iter().any(|id| id == "r1") && seen.iter().any(|id| id == "r2"));
+    }
+
+    #[test]
+    fn quest_cards_wait_and_repeat_until_accepted() {
+        let mut quest = scene("quest", UNIQUE).requires(Item::EReader).after(Item::EReader, 2).until(Item::Dream);
+        quest.right = quest.right.gives(Item::Dream);
+        let mut start = scene("start", UNIQUE);
+        start.right = start.right.gives(Item::EReader);
+        let deck = vec![start, quest, scene("filler", RECURRING)];
+        let mut e = Engine::new(deck, "start", Inventory::default(), 5).unwrap();
+        e.choose(Side::Right); // round 1: e-reader in hand
+        assert!(e.available().all(|s| s.id != "quest"), "held for 0 rounds");
+        e.choose(Side::Left);
+        assert!(e.available().all(|s| s.id != "quest"), "held for 1 round");
+        e.choose(Side::Left);
+        assert!(e.available().any(|s| s.id == "quest"), "held for 2 rounds");
+        // Refusing doesn't spend it, even for a unique character; accepting retires it.
+        let mut refused = 0;
+        for _ in 0..50 {
+            if e.current().id == "quest" {
+                refused += 1;
+                e.choose(Side::Left);
+            } else {
+                e.choose(Side::Right);
+            }
+        }
+        assert!(refused >= 2, "the quest card kept coming back");
+        while e.current().id != "quest" {
+            e.choose(Side::Right);
+        }
+        e.choose(Side::Right);
+        assert!(e.inventory().has(Item::Dream));
+        assert!(e.available().all(|s| s.id != "quest"));
+    }
+
+    #[test]
+    fn heavier_cards_come_up_more_often() {
+        let deck = vec![scene("a", RECURRING), scene("heavy", RECURRING).weight(8), scene("b", RECURRING)];
+        let mut e = Engine::new(deck, "a", Inventory::default(), 9).unwrap();
+        let heavy = (0..300).filter(|_| e.choose(Side::Right).id == "heavy").count();
+        // Never twice in a row, so at most half; with weight 8 against 1, close to that.
+        assert!(heavy > 120, "heavy drawn {heavy} times in 300");
+    }
+
+    #[test]
+    fn a_finale_choice_ends_with_the_truth() {
+        let mut last = scene("last", UNIQUE);
+        last.right = Choice::new("tell me", Effect::default()).finale();
+        let mut e = Engine::new(vec![last, scene("filler", RECURRING)], "last", Inventory::default(), 1).unwrap();
+        assert_eq!(e.outcome(), None);
+        e.choose(Side::Right);
+        assert_eq!(e.outcome(), Some(Outcome::Truth));
+    }
+
+    /// Plays the real deck with a sensible strategy over many shuffles: take
+    /// every step of the quest when it's survivable, otherwise steer every
+    /// attribute back toward 50. The truth must be reachable, and not trivially.
+    #[test]
+    fn the_quest_can_be_won() {
+        use crate::cards::{deck, START, START_ITEMS};
+        let quest = [Item::EReader, Item::Dream, Item::Fame, Item::Underworld, Item::FirstImmersion, Item::SecondImmersion, Item::Redemption];
+        let (mut wins, mut rounds_to_win, mut losses) = (0, 0, 0);
+        let mut deaths: Vec<String> = Vec::new();
+        let games = 300;
+        for seed in 0..games {
+            let mut e = Engine::new(deck(), START, Inventory::of(START_ITEMS), seed).unwrap();
+            for round in 0..400 {
+                let pick = |side: Side| {
+                    let choice = e.current().choice(side);
+                    let after = e.stats().apply(choice.effect);
+                    let risk: i32 = Stat::ALL.iter().map(|&s| (after.get(s) - STAT_START).abs()).sum();
+                    let safe = Stat::ALL.iter().all(|&s| (12..=88).contains(&after.get(s)));
+                    let progress = choice.finale || choice.gives.iter().any(|i| quest.contains(i) && !e.inventory().has(*i));
+                    let dead = after.extreme().is_some();
+                    (dead, !(progress && safe), risk)
+                };
+                let side = if pick(Side::Left) <= pick(Side::Right) { Side::Left } else { Side::Right };
+                e.choose(side);
+                match e.outcome() {
+                    Some(Outcome::Truth) => {
+                        wins += 1;
+                        rounds_to_win += round + 1;
+                        break;
+                    }
+                    Some(Outcome::Loss(stat, extreme)) => {
+                        losses += 1;
+                        let stage = quest.iter().rposition(|&i| e.inventory().has(i)).map_or("start", |i| quest[i].name());
+                        deaths.push(format!("{}-{extreme:?} at {stage}", stat.name()));
+                        break;
+                    }
+                    None => {}
+                }
+            }
+        }
+        let avg = if wins > 0 { rounds_to_win / wins } else { 0 };
+        deaths.sort();
+        let mut tally: Vec<(usize, String)> = Vec::new();
+        for d in deaths {
+            match tally.iter_mut().find(|(_, k)| *k == d) {
+                Some((n, _)) => *n += 1,
+                None => tally.push((1, d)),
+            }
+        }
+        tally.sort_by(|a, b| b.0.cmp(&a.0));
+        eprintln!("quest bot deaths: {tally:?}");
+        eprintln!("quest bot: {wins}/{games} won (avg {avg} cards), {losses} lost, {} unfinished", games as usize - wins - losses);
+        assert!(wins * 2 > games as usize, "a careful player should usually make it");
+        assert!((25..=150).contains(&avg), "the road should take a while, but not forever");
     }
 
     #[test]

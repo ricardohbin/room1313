@@ -45,6 +45,9 @@ pub enum Shot {
     Hospital,
     Overload,
     Aftermath,
+    // The true ending
+    Threshold,
+    Revelation,
     Document(Doc),
 }
 
@@ -85,6 +88,8 @@ impl Art {
             Shot::Hospital => endings::hospital(p, t),
             Shot::Overload => endings::overload(p, t),
             Shot::Aftermath => endings::aftermath(p, t),
+            Shot::Threshold => endings::threshold(p, t),
+            Shot::Revelation => endings::revelation(p, t),
             Shot::Document(doc) => endings::document(p, t, doc),
         }
     }

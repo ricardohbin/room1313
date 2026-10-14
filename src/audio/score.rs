@@ -21,6 +21,8 @@ pub enum Score {
     Requiem,
     /// Fatal overload: d-beat hardcore, cut dead when the body hits the floor.
     Hardcore,
+    /// The truth: luminous major-seventh chords that keep turning dark, bells, a breath.
+    Revelation,
 }
 
 impl Score {
@@ -33,6 +35,7 @@ impl Score {
             Score::Asylum => (60.0, 2),
             Score::Requiem => (66.0, 4),
             Score::Hardcore => (210.0, 4),
+            Score::Revelation => (54.0, 4),
         }
     }
 }
@@ -108,6 +111,7 @@ impl Bus {
             Score::Asylum => self.asylum(rig, t0, step),
             Score::Requiem => self.requiem(rig, t0, step),
             Score::Hardcore => self.hardcore(rig, t0, step),
+            Score::Revelation => self.revelation(rig, t0, step),
         }
     }
 
@@ -270,6 +274,26 @@ impl Bus {
             }
         }
         Ok(())
+    }
+
+    fn revelation(&self, rig: &Rig, t0: f64, step: f64) -> Result<(), JsValue> {
+        let out: &AudioNode = &rig.out;
+        let bar = step * 16.0;
+        // Dmaj7, E/D (the bright Lydian lift), Dmaj7, then B-flat: the floor drops away.
+        let chords: [[u8; 4]; 4] = [[50, 54, 57, 61], [50, 56, 59, 64], [50, 54, 57, 61], [46, 50, 53, 57]];
+        for (b, chord) in chords.iter().enumerate() {
+            let t = t0 + b as f64 * bar;
+            self.pad(t, chord, bar, out, 0.05)?;
+            self.pad(t, &[chord[0] + 12, chord[2] + 12], bar, out, 0.03)?;
+            self.piano(t, chord[0] - 12, bar, out, 0.2)?;
+            self.kick(t, out, 0.3)?;
+            // Bells climbing the chord, an octave or two up.
+            for k in 0..8 {
+                let note = chord[k % 4] + if k < 4 { 24 } else { 31 };
+                self.music_box(note, 0.0, t + k as f64 * step * 2.0, out)?;
+            }
+        }
+        self.breath(t0 + bar * 3.0, bar, out)
     }
 
     // ---------- Instruments ----------

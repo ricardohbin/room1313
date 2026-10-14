@@ -41,12 +41,20 @@ caption ends with the name of the loss in red.
 | Arousal high | `FatalOverload` | Home alone, hand on the wall, heart racing (the screen shakes and flushes red on each beat) until you fall, and **the music stops dead** → the same room, still; the phone rings and rings → coroner's *CARDIAC ARREST*, stamped DECEASED | `Hardcore`: d-beat, power chords on every 8th, 210 bpm |
 
 The card game plays an ending when an attribute reaches 0 or 100
-(`Ending::of(stat, extreme)` in `src/lib.rs`). An ending reloads back to the
-title screen.
+(`Ending::of(stat, extreme)` in `src/lib.rs`). The seventh ending, **`Truth`**,
+is the win: choosing "Tell me" on the shadow's last card (GAME.md, "The Road to
+the Truth"). Its film: the 13th-floor corridor and door 1313 open on the light
+→ the golden serpent biting its tail, you facing your own shape in light → the
+newspaper *DETECTIVE VANISHES*. Its score is `Revelation`: major-seventh chords
+that turn dark on B-flat, with bells and a breath. Any ending reloads back to
+the title screen.
 
-**Preview an ending:** open `http://localhost:8765/#ending=<name>` and pick New
-Game. Names: `dismissal`, `assassination`, `haunting`, `institution`, `coma`,
-`overload`.
+**Dev links** (then New Game):
+- `#ending=<name>` plays an ending: `dismissal`, `assassination`, `haunting`,
+  `institution`, `coma`, `overload`, `truth`.
+- `#cards` skips the intro.
+- `#card=<id>` skips the intro and deals that card first, with the items it
+  requires in hand (e.g. `#card=prophet_first`, `#card=shadow_truth`).
 
 ## Files
 

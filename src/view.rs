@@ -10,16 +10,16 @@ use web_sys::{Document, EventTarget, HtmlElement, PointerEvent};
 
 use crate::art::{item_icon, stat_icon, Portrait};
 use crate::cards::Item;
-use crate::engine::{Choice, Condition, Engine, Extreme, Inventory, Side, Stat, Stats, STAT_START};
+use crate::engine::{Choice, Condition, Engine, Inventory, Outcome, Side, Stat, Stats, STAT_START};
 use crate::swipe::{Drag, SwipeConfig};
 
 /// Must match the `.card` transition duration in style.css.
 const TRANSITION_MS: i32 = 300;
 const FLY_OUT_ROTATION_DEG: f64 = 30.0;
-/// After the losing choice: let the gauge settle on the extreme before the ending.
-const LOSS_PAUSE_MS: i32 = 1600;
+/// After the last choice: let the gauges settle before the ending.
+const END_PAUSE_MS: i32 = 1600;
 
-type OnLoss = Box<dyn FnOnce(Stat, Extreme)>;
+type OnEnd = Box<dyn FnOnce(Outcome)>;
 
 struct Gauge {
     root: HtmlElement,
@@ -50,14 +50,14 @@ struct App {
     drag: Option<Drag>,
     /// True while a choice is animating; input is ignored.
     busy: bool,
-    on_loss: Option<OnLoss>,
+    on_end: Option<OnEnd>,
 }
 
 type Shared = Rc<RefCell<App>>;
 
-/// Deals the cards. When an attribute reaches either end of its scale,
-/// the game stops and `on_loss` is called with it.
-pub fn mount(engine: Engine, root_id: &str, on_loss: impl FnOnce(Stat, Extreme) + 'static) -> Result<(), JsValue> {
+/// Deals the cards. When an attribute reaches either end of its scale, or you
+/// learn the truth, the game stops and `on_end` is called with the outcome.
+pub fn mount(engine: Engine, root_id: &str, on_end: impl FnOnce(Outcome) + 'static) -> Result<(), JsValue> {
     let document = window().document().ok_or("no document")?;
     let root = document
         .get_element_by_id(root_id)
@@ -70,7 +70,7 @@ pub fn mount(engine: Engine, root_id: &str, on_loss: impl FnOnce(Stat, Extreme) 
         swipe: SwipeConfig::default(),
         drag: None,
         busy: false,
-        on_loss: Some(Box::new(on_loss)),
+        on_end: Some(Box::new(on_end)),
     }));
     {
         let app = app.borrow();
@@ -317,7 +317,7 @@ fn on_pointer_up(app: &Shared, _ev: PointerEvent) {
 /// Applies the choice (the HUD moves right away), flies the card off-screen,
 /// then brings in the next scene, or hands over to the ending.
 fn commit(app: &Shared, side: Side) {
-    let loss = {
+    let outcome = {
         let mut a = app.borrow_mut();
         a.busy = true;
         let dir = match side {
@@ -344,15 +344,15 @@ fn commit(app: &Shared, side: Side) {
                 restart_animation(slot, "new");
             }
         }
-        after.extreme()
+        a.engine.outcome()
     };
 
-    if let Some((stat, extreme)) = loss {
+    if let Some(outcome) = outcome {
         let app = app.clone();
-        after(LOSS_PAUSE_MS, move || {
-            let on_loss = app.borrow_mut().on_loss.take();
-            if let Some(on_loss) = on_loss {
-                on_loss(stat, extreme);
+        after(END_PAUSE_MS, move || {
+            let on_end = app.borrow_mut().on_end.take();
+            if let Some(on_end) = on_end {
+                on_end(outcome);
             }
         });
         return;

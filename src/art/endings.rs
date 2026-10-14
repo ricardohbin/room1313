@@ -58,6 +58,7 @@ pub enum Doc {
     Committed,
     Coma,
     Overload,
+    Truth,
 }
 
 // ---------- The detective ----------
@@ -944,6 +945,125 @@ fn apartment(p: &Pen, t: f64, ring: bool) {
     }
 }
 
+// ---------- The truth ----------
+
+/// The thirteenth floor. Door 1313 stands open on a blinding light; the
+/// shadow waits beside it. You walk the length of the corridor and go in.
+pub(super) fn threshold(p: &Pen, t: f64) {
+    p.rect(0.0, 0.0, W, 96.0, "#18201b");
+    p.ink("#141a16");
+    for x in (0..W as i32).step_by(8) {
+        p.ctx.fill_rect(x as f64, 0.0, 3.0, 96.0);
+    }
+    p.rect(0.0, 0.0, W, 8.0, "#0e0c0c");
+    p.rect(0.0, 96.0, W, H - 96.0, "#1a0e10");
+    p.rect(0.0, 104.0, W, 14.0, "#3a1416");
+    p.rect(0.0, 96.0, W, 1.0, "#2a2018");
+    // Doors 1311 and 1312, shut. 1313, wide open.
+    for (x, n) in [(24.0, "1311"), (92.0, "1312")] {
+        p.rect(x - 2.0, 46.0, 22.0, 50.0, "#2e2016");
+        p.rect(x, 48.0, 18.0, 48.0, "#24180f");
+        p.text(n, x + 1.0, 40.0, "#8a7444");
+        p.px(x + 15.0, 74.0, "#a08a5a");
+    }
+    let (dx, open) = (176.0, 18.0);
+    p.rect(dx - 2.0, 46.0, 22.0, 50.0, "#2e2016");
+    p.rect(dx, 48.0, 18.0, 48.0, "#fff6e0");
+    p.rect(dx - open * 0.3, 48.0, 4.0, 48.0, "#24180f");
+    p.text("1313", dx + 1.0, 40.0, "#c0392b");
+    // The light pours out across the carpet and up the walls, breathing.
+    let breath = 0.75 + 0.25 * (t * 1.3).sin();
+    p.glow(dx + 9.0, 72.0, 90.0, "255,244,214", 0.45 * breath);
+    for y in 96..H as i32 {
+        let k = (y - 96) as f64;
+        let c = format!("rgba(255,244,214,{:.3})", 0.22 * breath * (1.0 - k / 40.0));
+        p.rect(dx - k * 1.4, y as f64, 18.0 + k * 1.4, 1.0, &c);
+    }
+    // Sconces, failing one after another as you pass.
+    for (i, x) in [60.0, 132.0].into_iter().enumerate() {
+        let dying = t > 3.0 + i as f64 * 3.5;
+        p.rect(x - 2.0, 30.0, 5.0, 4.0, "#3a3020");
+        if !dying || hash((t * 20.0) as u32 + i as u32) < 0.1 {
+            p.glow(x, 32.0, 26.0, "240,200,130", 0.25);
+            p.rect(x - 1.0, 28.0, 3.0, 2.0, "#f0d890");
+        }
+    }
+    // The shadow, waiting at the door.
+    let sx = 208.0;
+    for y in 52..112 {
+        let yf = y as f64;
+        let hw = if yf < 62.0 { 3.0 } else { (3.0 + (yf - 62.0) * 0.12).min(6.0) };
+        let drift = ((yf * 0.3 + t * 2.0).sin()).round();
+        p.rect(sx - hw + drift, yf, hw * 2.0, 1.0, "#000000");
+        p.px(sx - hw - 1.0 - hash(y as u32 + (t * 6.0) as u32) * 3.0 + drift, yf, "rgba(32,28,44,0.6)");
+    }
+    p.px(sx - 1.0, 56.0, "#ece8f4");
+    p.px(sx + 1.0, 56.0, "#ece8f4");
+    // You, walking into the light.
+    let x = 16.0 + t * 14.0;
+    if x < dx + 4.0 {
+        let fade = ((dx + 4.0 - x) / 20.0).min(1.0);
+        agent(p, x, 112.0, Pose::Walk((t * 3.0) as u32), COAT, "#e8d8b0");
+        if fade < 1.0 {
+            p.glow(x + 4.0, 100.0, 20.0, "255,244,214", 0.8 * (1.0 - fade));
+        }
+    }
+    p.light(150.0, 70.0, 190.0, 0.5);
+}
+
+/// Inside 1313 there is no room: stars, a serpent of gold biting its own
+/// tail, and at its heart you, facing someone made of light who has your shape.
+pub(super) fn revelation(p: &Pen, t: f64) {
+    p.rect(0.0, 0.0, W, H, "#04040a");
+    for i in 0..120u32 {
+        let tw = (t * (1.0 + hash(i + 70) * 2.0) + hash(i + 90) * TAU).sin();
+        if tw > -0.3 {
+            let c = if hash(i + 110) < 0.15 { "#c8a040" } else { "#8a8aa8" };
+            p.px(hash(i + 30) * W, hash(i + 50) * H, c);
+        }
+    }
+    let (cx, cy) = (120.0, 64.0);
+    let grow = smoothstep(t / 8.0);
+    p.glow(cx, cy, 70.0 + 40.0 * grow, "255,236,190", 0.25 + 0.35 * grow);
+    sigil(p, cx, cy, 52.0, "rgba(192,57,43,0.18)", "rgba(192,57,43,0.4)");
+    // The serpent: a ring of scales sliding round, the head swallowing the tail at the top.
+    let turn = t * 0.25;
+    for k in 0..180 {
+        let a = k as f64 / 180.0 * TAU;
+        if (a - TAU * 0.75).abs() < 0.12 {
+            continue; // the gap the head closes
+        }
+        for (r, shade) in [(44.0, 0.0), (45.0, 1.0), (46.0, 0.0), (47.0, 1.0)] {
+            let scale = ((a * 30.0 + turn * 30.0).sin() > 0.0) as u8 as f64;
+            let c = match (shade + scale) as u8 {
+                0 => "#6a4e18",
+                1 => "#c8a040",
+                _ => "#f0d878",
+            };
+            p.px((cx + a.cos() * r).round(), (cy + a.sin() * r * 0.8).round(), c);
+        }
+    }
+    let (hx, hy) = (cx + 8.0, cy - 47.0 * 0.8);
+    p.rect(hx - 6.0, hy - 3.0, 10.0, 6.0, "#c8a040");
+    p.rect(hx - 6.0, hy - 3.0, 10.0, 1.0, "#f0d878");
+    p.px(hx - 3.0, hy - 1.0, "#c0392b");
+    p.rect(hx - 10.0, hy, 4.0, 2.0, "#6a4e18");
+    // You, and the one who wears your shape in light.
+    agent(p, cx - 20.0, cy + 26.0, Pose::Stand, COAT, "#f0d878");
+    let pulse = 0.8 + 0.2 * (t * 2.0).sin();
+    p.glow(cx + 12.0, cy + 12.0, 24.0, "255,250,230", 0.6 * pulse);
+    for y in 0..26 {
+        let yf = y as f64;
+        let (x0, w) = if yf < 4.0 { (4.0, 4.0) } else if yf < 17.0 { (3.0, 7.0) } else { (3.0, 6.0) };
+        p.rect(cx + 6.0 + x0, cy + yf, w, 1.0, "#fff8e8");
+    }
+    // At the very end, everything goes white.
+    let white = smoothstep((t - 9.0) / 3.0);
+    if white > 0.0 {
+        p.rect(0.0, 0.0, W, H, &format!("rgba(255,248,232,{white:.3})"));
+    }
+}
+
 // ---------- Documents ----------
 
 /// The ending's last word: a paper on a dark desk, a headline, maybe a stamp.
@@ -967,6 +1087,7 @@ pub(super) fn document(p: &Pen, t: f64, doc: Doc) {
         Doc::Committed => ("ST. AGNES HOSPITAL", ["INVOLUNTARY", "COMMITMENT"], Some("NO VISITS")),
         Doc::Coma => ("CITY GENERAL HOSPITAL", ["PATIENT", "IN COMA"], None),
         Doc::Overload => ("OFFICE OF THE CORONER", ["CARDIAC", "ARREST"], Some("DECEASED")),
+        Doc::Truth => ("THE EVENING STAR", ["DETECTIVE", "VANISHES"], Some("CLOSED")),
     };
     let center = |s: &str, scale: f64| x0 + 56.0 - (s.len() as f64 * 4.0 - 1.0) * scale / 2.0;
     p.text(masthead, center(masthead, 1.0), y0 + 6.0, ink);
@@ -994,6 +1115,13 @@ pub(super) fn document(p: &Pen, t: f64, doc: Doc) {
             }
         }
         Doc::Committed => sigil(p, fx + 20.0, fy + 15.0, 12.0, "#5a1612", "#5a1612"),
+        Doc::Truth => {
+            // The door of 1313, ajar, light spilling out.
+            p.text("1313", fx + 13.0, fy + 2.0, "#1e1a16");
+            p.rect(fx + 13.0, fy + 8.0, 14.0, 22.0, "#3a362e");
+            p.rect(fx + 15.0, fy + 10.0, 10.0, 20.0, "#f0ead8");
+            p.rect(fx + 15.0, fy + 10.0, 4.0, 20.0, "#5a5446");
+        }
         Doc::Coma | Doc::Overload => {
             let flat = doc == Doc::Overload;
             let mut prev = (fx + 2.0, fy + 15.0);

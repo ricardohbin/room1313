@@ -28,6 +28,9 @@ impl Portrait {
         let p = &self.pen;
         p.rect(0.0, 0.0, S, S, "#000");
         match who {
+            Character::Officer => officer(p),
+            Character::Shadow => shadow(p),
+            Character::Prophet => prophet(p),
             Character::HotelOwner => owner(p),
             Character::Reporter => reporter(p),
             Character::Occultist => occultist(p),
@@ -140,6 +143,201 @@ fn finish(p: &Pen, seed: u32) {
 }
 
 // ---------- The cast ----------
+
+/// Sgt. Otis Holloway: police cap, a thick moustache going grey, kind tired
+/// eyes, a clipboard of paperwork nobody will ever read. Fluorescent light.
+fn officer(p: &Pen) {
+    // Precinct wall: pale green paint, a notice board, the strip light above.
+    p.rect(0.0, 0.0, S, S, "#1e2a24");
+    p.rect(0.0, 64.0, S, S - 64.0, "#18221d");
+    p.rect(0.0, 64.0, S, 1.0, "#2a3a32");
+    p.rect(66.0, 6.0, 26.0, 22.0, "#3a2c1c");
+    for &(x, y, w, h) in &[(68.0, 8.0, 9.0, 8.0), (79.0, 9.0, 10.0, 7.0), (70.0, 18.0, 8.0, 8.0), (80.0, 18.0, 9.0, 7.0)] {
+        p.rect(x, y, w, h, "#b8b2a2");
+        p.rect(x + 1.0, y + 2.0, w - 3.0, 1.0, "#6a665c");
+        p.px(x + w / 2.0, y, "#c0392b");
+    }
+    p.glow(70.0, 0.0, 80.0, "220,235,220", 0.2);
+
+    let skin = tones("#21140d", "#402619", "#74492f");
+    let uniform = tones("#0a0f1a", "#172036", "#3a4c74");
+    fill(p, 46.0, 58.0, |_| Some((CX - 6.0, CX + 6.0)), skin, Light::Right, 0.4);
+    shoulders(p, 56.0, 11.0, 44.0, 12.0, uniform, Light::Right);
+    // Collar, black tie, the badge, a name bar.
+    p.line(CX - 9.0, 54.0, CX - 2.0, 62.0, uniform.lit);
+    p.line(CX + 9.0, 54.0, CX + 2.0, 62.0, uniform.base);
+    for y in 57..96 {
+        let hw = if y < 88 { 1.0 } else { 2.0 };
+        p.rect(CX - hw, y as f64, hw * 2.0, 1.0, "#050508");
+    }
+    p.px(CX, 72.0, "#c8a040");
+    oval(p, (CX + 14.0, 68.0), (4.0, 5.0), tones("#6a5428", "#a08840", "#e0c878"), Light::Right, 0.3);
+    p.px(CX + 14.0, 67.0, "#5a4418");
+    p.rect(CX - 20.0, 68.0, 10.0, 2.0, "#c8c4b8");
+    p.rect(CX - 26.0, 58.0, 6.0, 8.0, "#26324c"); // shoulder patch
+    p.px(CX - 23.0, 61.0, "#c8a040");
+
+    // Head: ears, a broad face, a moustache like a push broom.
+    oval(p, (CX - 12.0, 38.0), (2.0, 3.0), skin, Light::Right, 0.5);
+    oval(p, (CX + 12.0, 38.0), (2.0, 3.0), skin, Light::Right, 0.0);
+    oval(p, (CX, 37.0), (12.0, 14.0), skin, Light::Right, 0.3);
+    fill(p, 40.0, 49.0, |_| Some((CX - 10.0, CX + 10.0)), skin, Light::Right, 0.3);
+    oval(p, (CX, 49.0), (8.0, 3.0), skin, Light::Right, 0.3);
+    for ex in [CX - 5.0, CX + 5.0] {
+        p.rect(ex - 3.0, 32.0, 6.0, 2.0, "#0c0806"); // heavy brows
+        p.rect(ex - 2.0, 35.0, 4.0, 1.0, "#d8ccb8");
+        p.rect(ex - 1.0, 35.0, 2.0, 1.0, "#1a0e08");
+        p.px(ex, 35.0, "#3a2414");
+        p.rect(ex - 2.0, 34.0, 4.0, 1.0, skin.dark); // tired lids
+        p.rect(ex - 2.0, 37.0, 4.0, 1.0, "#2e1c12");
+    }
+    p.rect(CX - 1.0, 37.0, 2.0, 4.0, skin.dark);
+    p.rect(CX - 3.0, 41.0, 6.0, 2.0, "#2e1c12");
+    p.px(CX + 2.0, 39.0, skin.lit);
+    for (i, w) in [8.0, 11.0, 11.0, 9.0].into_iter().enumerate() {
+        p.rect(CX - w / 2.0, 43.0 + i as f64, w, 1.0, "#0c0806");
+    }
+    p.ink("#4a4440");
+    for i in 0..4 {
+        p.dot(CX - 5.0 + hash(i + 600) * 10.0, 43.0 + hash(i + 640) * 2.0);
+    }
+    p.rect(CX - 3.0, 48.0, 6.0, 1.0, "#1a0c08");
+
+    // Peaked police cap: navy crown, black band, brass badge, a shiny visor.
+    fill(p, 13.0, 25.0, |y| Some((CX - 13.0 - (25.0 - y) * 0.25, CX + 13.0 + (25.0 - y) * 0.25)), uniform, Light::Right, 0.3);
+    p.rect(CX - 13.0, 23.0, 26.0, 4.0, "#06060a");
+    oval(p, (CX, 18.0), (3.0, 3.0), tones("#6a5428", "#a08840", "#e0c878"), Light::Right, 0.3);
+    p.rect(CX - 14.0, 27.0, 28.0, 3.0, "#050506");
+    p.rect(CX - 12.0, 29.0, 24.0, 1.0, "#3a3e4a");
+    p.rect(CX - 11.0, 30.0, 22.0, 2.0, "rgba(0,0,0,0.35)");
+
+    // The clipboard, and the hand holding it up for you to sign.
+    p.rect(4.0, 66.0, 28.0, 30.0, "#6a4e30");
+    p.rect(6.0, 70.0, 24.0, 26.0, "#d8d2c0");
+    p.ink("#8a8476");
+    for y in (74..94).step_by(3) {
+        p.ctx.fill_rect(8.0, y as f64, 14.0 + hash(y as u32) * 6.0, 1.0);
+    }
+    p.rect(12.0, 64.0, 12.0, 4.0, "#9a9aa4");
+    p.rect(12.0, 64.0, 12.0, 1.0, "#c8c8d0");
+    oval(p, (32.0, 82.0), (5.0, 6.0), skin, Light::Right, 0.3);
+}
+
+/// The shadow: no face, no edges. Smoke in the shape of a person, two
+/// pinpoints of light, a whisper drifting off where a mouth would be.
+fn shadow(p: &Pen) {
+    p.rect(0.0, 0.0, S, S, "#07060a");
+    p.glow(CX, 40.0, 60.0, "120,20,20", 0.22);
+    sigil(p, CX, 40.0, 32.0, "rgba(150,30,25,0.22)", "rgba(200,40,30,0.4)");
+    for y in 12..S as i32 {
+        let yf = y as f64;
+        let hw = if yf < 44.0 {
+            let d = (yf - 31.0) / 17.0;
+            11.0 * (1.0 - d * d).max(0.0).sqrt()
+        } else if yf < 52.0 {
+            7.0
+        } else {
+            (7.0 + (yf - 52.0) * 1.7).min(44.0)
+        };
+        if hw < 1.0 {
+            continue;
+        }
+        let drift = ((yf * 0.21).sin() * 1.5).round();
+        p.rect(CX - hw + drift, yf, hw * 2.0, 1.0, "#000000");
+        // A smoky, broken edge.
+        for k in 0..5u32 {
+            let off = hash(y as u32 * 13 + k) * 7.0;
+            p.px(CX - hw - off + drift, yf, "rgba(32,28,44,0.6)");
+            p.px(CX + hw + off + drift, yf, "rgba(32,28,44,0.6)");
+        }
+    }
+    p.ink("rgba(40,36,56,0.5)");
+    for k in 0..40u32 {
+        p.dot(CX + (hash(k) - 0.5) * 26.0, 14.0 - hash(k + 40) * 14.0);
+    }
+    p.glow(CX, 33.0, 10.0, "220,215,240", 0.15);
+    p.px(CX - 4.0, 33.0, "#ece8f4");
+    p.px(CX + 4.0, 33.0, "#ece8f4");
+    // The whisper.
+    for k in 0..3 {
+        for i in 0..12 {
+            let x = CX + 6.0 + i as f64 * 3.0;
+            let y = 42.0 + k as f64 * 4.0 + (i as f64 * 0.8 + k as f64).sin() * 2.0;
+            let a = 0.3 - i as f64 * 0.022;
+            p.px(x, y, &format!("rgba(190,180,215,{a:.3})"));
+        }
+    }
+}
+
+/// Mrs. Celeste Moreau: an ordinary, elegant woman. Silver-blond chignon,
+/// pearls, a high lace collar, gloves, a kind smile. Her basin of black
+/// water, and something red looking up out of it.
+fn prophet(p: &Pen) {
+    // Parlour: burgundy velvet in folds, lamplight from the left.
+    p.rect(0.0, 0.0, S, S, "#1a0c10");
+    for x in (0..S as i32).step_by(8) {
+        p.rect(x as f64, 0.0, 3.0, S, "#24101a");
+        p.rect(x as f64 + 3.0, 0.0, 1.0, S, "#33171f");
+    }
+    p.glow(6.0, 30.0, 74.0, "255,210,150", 0.24);
+
+    let skin = tones("#8a6a5a", "#c8a08a", "#ecc8b0");
+    let hair = tones("#8a7a5a", "#c8b48a", "#ece0c0");
+    let dress = tones("#060508", "#121016", "#3e3446");
+    fill(p, 44.0, 58.0, |_| Some((CX - 4.0, CX + 4.0)), skin, Light::Left, 0.4);
+    shoulders(p, 58.0, 8.0, 36.0, 14.0, dress, Light::Left);
+    // High lace collar, a cameo, a strand of pearls.
+    p.rect(CX - 6.0, 49.0, 12.0, 7.0, dress.base);
+    p.ink("#3e3446");
+    for y in (50..56).step_by(2) {
+        for x in (CX as i32 - 5..CX as i32 + 6).step_by(2) {
+            p.dot(x as f64 + (y % 4 / 2) as f64, y as f64);
+        }
+    }
+    oval(p, (CX, 57.0), (2.0, 2.0), tones("#8a6a30", "#c8a040", "#ecd080"), Light::Left, 0.2);
+    p.px(CX, 57.0, "#ece4d8");
+    for i in 0..13 {
+        let x = CX - 12.0 + i as f64 * 2.0;
+        let y = 62.0 + (6.0 - (i as f64 - 6.0).abs()) * 0.7;
+        p.px(x, y, "#ece8e0");
+        p.px(x + 1.0, y, "#9a968e");
+    }
+
+    // Face: calm, a little smile, golden eyes.
+    oval(p, (CX, 37.0), (10.0, 13.0), skin, Light::Left, 0.3);
+    for ex in [CX - 4.0, CX + 4.0] {
+        p.line(ex - 2.0, 32.0, ex + 1.0, 31.0, "#8a7a5a");
+        p.rect(ex - 2.0, 35.0, 4.0, 1.0, "#2a1a18");
+        p.px(ex, 36.0, "#c8a040");
+        p.px(ex - 1.0, 36.0, "#ece4d8");
+    }
+    p.px(CX - 1.0, 39.0, skin.dark);
+    p.px(CX - 1.0, 40.0, skin.dark);
+    p.rect(CX - 2.0, 44.0, 5.0, 1.0, "#9a3a3a");
+    p.px(CX - 3.0, 43.0, "#9a3a3a");
+    p.px(CX + 3.0, 43.0, "#9a3a3a");
+    p.rect(CX - 8.0, 40.0, 3.0, 2.0, "rgba(220,110,100,0.25)");
+    p.rect(CX + 5.0, 40.0, 3.0, 2.0, "rgba(220,110,100,0.25)");
+    p.px(CX - 10.0, 41.0, "#ece8e0");
+    p.px(CX + 10.0, 41.0, "#ece8e0");
+    // Swept up into a chignon.
+    fill(p, 22.0, 32.0, ellipse(CX, 33.0, 11.0, 11.0), hair, Light::Left, 0.3);
+    oval(p, (CX + 5.0, 19.0), (7.0, 5.0), hair, Light::Left, 0.3);
+    p.line(CX - 9.0, 28.0, CX + 2.0, 22.0, hair.lit);
+    p.line(CX - 4.0, 30.0, CX + 7.0, 24.0, hair.dark);
+    p.rect(CX - 11.0, 31.0, 2.0, 6.0, hair.base);
+
+    // The basin of black water, her gloved hands on its rim.
+    blot(p, CX, 88.0, 24.0, 7.0, "#d8d4cc");
+    blot(p, CX, 88.0, 21.0, 5.0, "#04060a");
+    p.rect(CX - 21.0, 84.0, 42.0, 1.0, "#ece8e0");
+    p.glow(CX + 2.0, 88.0, 10.0, "200,40,30", 0.35);
+    p.px(CX + 1.0, 88.0, "#c0392b");
+    p.px(CX + 3.0, 88.0, "#c0392b");
+    ring(p, CX + 2.0, 88.0, 4.0, "rgba(160,160,180,0.25)");
+    oval(p, (CX - 22.0, 84.0), (5.0, 4.0), tones("#020203", "#0c0a10", "#3a3446"), Light::Left, 0.3);
+    oval(p, (CX + 22.0, 84.0), (5.0, 4.0), tones("#020203", "#0c0a10", "#3a3446"), Light::Left, 0.3);
+}
 
 /// Mr. Ostrowski, behind his own reception desk: old, bald, polite, scared.
 /// He holds up the key tag of room 1313.

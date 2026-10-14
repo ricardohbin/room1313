@@ -165,3 +165,37 @@ The underlying horror comes from the possibility that salvation and damnation ar
 3. talk to ocultist, hints he know someone relevant
 4. meets a secret society
 5. 
+### The Road to the Truth (implemented, `src/cards.rs`)
+
+The main quest is a chain of items. Each item unlocks the next character's
+card. Quest cards **keep coming back until you accept them**: refusing costs you
+time, not the quest.
+
+| # | Who | Needs | Offer (accept →) | Notes |
+|---|---|---|---|---|
+| 1 | **Sgt. Otis Holloway** (your sergeant) | — | *The e-reader* | First card of the game; both answers give it. If anyone takes it from you later, Holloway brings it back ("Evidence sent it back. Again.") |
+| 2 | **A shadow** (spectral, whispers) | e-reader, held 2 rounds | *A dream* | "Close your eyes" |
+| 3 | **Vera Kask** (reporter) | dream, held 4 rounds | *Occult subcelebrity* | Her podcast, *Room 1313 After Dark*. Going on air: big Reputation jump |
+| — | **Brother Josiah, Dale Pruitt, the Agent** | subcelebrity | — | Six hostile cards try to push you over an edge. Each offers one choice that costs Arousal and one that costs another attribute. Holloway offers to cover for you |
+| 4 | **Ambrose Quill** (occultist) | subcelebrity, held 6 rounds | *Access to the underworld* | "Do you want to know the truth? There's a door under the city." |
+| 5 | **Mrs. Celeste Moreau** (prophet) | underworld | *First immersion* | Each immersion: big Sensitivity up, Arousal down |
+| 6 | Mrs. Moreau | first immersion, held 3 rounds | *Second immersion* | |
+| 7 | Mrs. Moreau | second immersion, held 3 rounds | *Redemption* | Surviving three immersions is the test: recover between them |
+| 8 | **The shadow** | redemption | **The truth** | "Do you want to know the truth?" → the true ending (`Ending::Truth`) |
+
+**Pacing.** Quest cards are drawn 3× as often as normal cards (the final shadow card 5×).
+The "held N rounds" waits make you live with each step before the next.
+
+**Balance target**, checked by the `the_quest_can_be_won` test: a bot plays the
+real deck over 300 shuffles. It takes every quest step it can survive, and
+otherwise steers each attribute back toward 50. It wins about **72%** of games,
+after about **68 cards**. Most deaths are Arousal-high, after fame and between
+immersions. The test fails if the win rate drops under 50% or the average
+length leaves 25–150 cards. Rerun it after changing numbers:
+`cargo test the_quest -- --nocapture`.
+
+**The true ending.** The shadow leads you to the 13th floor; door 1313 stands
+open on a blinding light. Inside: no room, only a golden serpent biting its own
+tail (358: Nachash and Mashiach). At its heart you face someone made of light,
+in your shape. *Serpent or messiah: it wore your face, and it smiled.* The
+newspaper: **DETECTIVE VANISHES**. Next October 13th, room 1313 is already booked.
