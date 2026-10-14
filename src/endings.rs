@@ -308,3 +308,19 @@ const TRUTH_SCENES: [Scene; 3] = [
         }
     }),
 ];
+
+// ---------- Credits (after the truth) ----------
+
+static CREDITS: Film = Film { scenes: &CREDITS_SCENES, score: |m| m.start_theme() };
+
+const CREDITS_SCENES: [Scene; 3] = [
+    Scene::new(Shot::Hotel, &["ROOM 1313", "A game by bin & zed"], 1500.0).cue(|m| m.rain(0.25, 2200.0, 2.0)),
+    Scene::new(Shot::Hotel, &["Made in Sao Paulo, SP. Brazil.", "Built 100% with Claude Opus 5.5."], 600.0).cut_in(),
+    Scene::new(Shot::Hotel, &["Thank you for playing.", "See you next October 13th."], 600.0).cut_in(),
+];
+
+/// The end credits, rolled after the true ending.
+pub fn credits(root_id: &str, on_done: impl FnOnce() + 'static) {
+    cinematic::play(&CREDITS, root_id, on_done);
+}
+

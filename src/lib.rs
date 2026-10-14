@@ -47,6 +47,7 @@ pub fn start() -> Result<(), JsValue> {
     let engine = Engine::new(deck, &start, items, seed).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let skip_intro = hash == "#cards" || first.is_some();
     splash::mount("app", move || match preview {
+        _ if hash == "#credits" => endings::credits("app", back_to_title),
         Some(ending) => endings::play(ending, "app", back_to_title),
         None if skip_intro => deal(engine),
         None => intro::play("app", move || deal(engine)),
@@ -56,12 +57,10 @@ pub fn start() -> Result<(), JsValue> {
 /// Starts the card game; when an attribute breaks, its ending plays,
 /// and when you learn the truth, the true ending.
 fn deal(engine: Engine) {
-    let on_end = |outcome| {
-        let ending = match outcome {
-            Outcome::Loss(stat, extreme) => Ending::of(stat, extreme),
-            Outcome::Truth => Ending::Truth,
-        };
-        endings::play(ending, "app", back_to_title)
+    let on_end = |outcome| match outcome {
+        Outcome::Loss(stat, extreme) => endings::play(Ending::of(stat, extreme), "app", back_to_title),
+        // The true ending earns the credits.
+        Outcome::Truth => endings::play(Ending::Truth, "app", || endings::credits("app", back_to_title)),
     };
     if let Err(e) = view::mount(engine, "app", on_end) {
         web_sys::console::error_1(&e);

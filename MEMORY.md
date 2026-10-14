@@ -49,6 +49,11 @@ Full recipe and conventions: `CINEMATICS.md`.
   (`Ending::of`). Preview with `#ending=<name>` + New Game;
   an ending reloads back to the title.
 
+- **Credits** (`endings::credits`): roll after the true ending only, over the
+  rainy hotel with the title lullaby: "A game by bin & zed", "Made in Sao Paulo,
+  SP. Brazil." (the Room 13 font has no accents), "Built 100% with Claude
+  Opus 5.5". Dev link `#credits`.
+
 Verified by screenshots in headless Chrome (no console errors). Not verified:
 audio by ear, Escape-to-skip.
 
