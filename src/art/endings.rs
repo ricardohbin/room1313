@@ -7,6 +7,7 @@
 use std::f64::consts::TAU;
 
 use super::*;
+use crate::i18n::t as tr;
 
 // ---------- Timings shared with the sound ----------
 
@@ -60,6 +61,36 @@ pub enum Doc {
     Overload,
     Truth,
 }
+
+impl Doc {
+    #[cfg(test)]
+    pub(super) const ALL: [Doc; 7] =
+        [Doc::Dismissal, Doc::Assassination, Doc::Haunting, Doc::Committed, Doc::Coma, Doc::Overload, Doc::Truth];
+
+    /// Masthead, two-line headline and stamp, in English (`t` translates them).
+    pub(super) fn text(self) -> (&'static str, &'static str, Option<&'static str>) {
+        match self {
+            Doc::Dismissal => ("THE EVENING STAR", "DETECTIVE
+DISMISSED", None),
+            Doc::Assassination => ("THE EVENING STAR", "DETECTIVE
+SHOT DEAD", None),
+            Doc::Haunting => ("POLICE INCIDENT REPORT", "ACCIDENTAL
+DEATH", Some("CLOSED")),
+            Doc::Committed => ("ST. AGNES HOSPITAL", "INVOLUNTARY
+COMMITMENT", Some("NO VISITS")),
+            Doc::Coma => ("CITY GENERAL HOSPITAL", "PATIENT
+IN COMA", None),
+            Doc::Overload => ("OFFICE OF THE CORONER", "CARDIAC
+ARREST", Some("DECEASED")),
+            Doc::Truth => ("THE EVENING STAR", "DETECTIVE
+VANISHES", Some("CLOSED")),
+        }
+    }
+}
+
+/// Signs painted in the shots.
+pub(super) const CAPTAIN: &str = "CAPTAIN";
+pub(super) const POLICE: &str = "POLICE";
 
 // ---------- The detective ----------
 
@@ -205,7 +236,7 @@ pub(super) fn badge(p: &Pen, t: f64) {
     p.rect(0.0, 84.0, W, H - 84.0, "#1e1611");
     p.rect(0.0, 84.0, W, 1.0, "#2e2219");
     p.rect(100.0, 86.0, 30.0, 6.0, "#3a2e1e");
-    p.text("CAPTAIN", 101.0, 87.0, "#b49a62");
+    p.text(tr(CAPTAIN), 101.0, 87.0, "#b49a62");
     p.rect(150.0, 78.0, 8.0, 6.0, "#d8d2c0"); // papers
     p.rect(154.0, 80.0, 1.0, 3.0, "#08070a"); // the pen, scratching away
     p.px(155.0 + (t * 9.0).sin().round(), 82.0, "#08070a");
@@ -289,7 +320,8 @@ pub(super) fn leaving(p: &Pen, t: f64) {
     p.rect(46.0, 82.0, 26.0, 22.0, "#0e0e11");
     p.rect(48.0, 84.0, 22.0, 20.0, "#3a3220");
     p.rect(58.0, 84.0, 1.0, 20.0, "#1a160e");
-    p.text("POLICE", 47.0, 75.0, "#c8c8d0");
+    let police = tr(POLICE);
+    p.text(police, 59.0 - (police.chars().count() as f64 * 4.0 - 1.0) / 2.0, 75.0, "#c8c8d0");
     p.glow(59.0, 66.0, 18.0, "80,120,255", 0.35);
     p.rect(57.0, 64.0, 4.0, 4.0, "#5a8aff");
     for (k, w) in [(0.0, 34.0), (1.0, 40.0), (2.0, 46.0)] {
@@ -1080,19 +1112,12 @@ pub(super) fn document(p: &Pen, t: f64, doc: Doc) {
     p.rect(x0, y0, 112.0, 1.0, "#e8e2d0");
 
     let ink = "#1e1a16";
-    let (masthead, headline, stamp): (&str, [&str; 2], Option<&str>) = match doc {
-        Doc::Dismissal => ("THE EVENING STAR", ["DETECTIVE", "DISMISSED"], None),
-        Doc::Assassination => ("THE EVENING STAR", ["DETECTIVE", "SHOT DEAD"], None),
-        Doc::Haunting => ("POLICE INCIDENT REPORT", ["ACCIDENTAL", "DEATH"], Some("CLOSED")),
-        Doc::Committed => ("ST. AGNES HOSPITAL", ["INVOLUNTARY", "COMMITMENT"], Some("NO VISITS")),
-        Doc::Coma => ("CITY GENERAL HOSPITAL", ["PATIENT", "IN COMA"], None),
-        Doc::Overload => ("OFFICE OF THE CORONER", ["CARDIAC", "ARREST"], Some("DECEASED")),
-        Doc::Truth => ("THE EVENING STAR", ["DETECTIVE", "VANISHES"], Some("CLOSED")),
-    };
-    let center = |s: &str, scale: f64| x0 + 56.0 - (s.len() as f64 * 4.0 - 1.0) * scale / 2.0;
+    let (masthead, headline, stamp) = doc.text();
+    let (masthead, headline, stamp) = (tr(masthead), tr(headline), stamp.map(tr));
+    let center = |s: &str, scale: f64| x0 + 56.0 - (s.chars().count() as f64 * 4.0 - 1.0) * scale / 2.0;
     p.text(masthead, center(masthead, 1.0), y0 + 6.0, ink);
     p.rect(x0 + 6.0, y0 + 13.0, 100.0, 1.0, ink);
-    for (i, line) in headline.iter().enumerate() {
+    for (i, line) in headline.lines().enumerate() {
         p.text_at_scale(line, center(line, 2.0), y0 + 18.0 + i as f64 * 13.0, 2.0, ink);
     }
     p.rect(x0 + 6.0, y0 + 44.0, 100.0, 1.0, ink);
@@ -1157,7 +1182,7 @@ pub(super) fn document(p: &Pen, t: f64, doc: Doc) {
 
     if let Some(stamp) = stamp {
         if t >= STAMP_AT {
-            let w = stamp.len() as f64 * 8.0 + 6.0;
+            let w = stamp.chars().count() as f64 * 8.0 + 6.0;
             let (sx, sy) = (x0 + 104.0 - w, y0 + 96.0);
             p.rect(sx, sy, w, 16.0, "rgba(170,30,25,0.85)");
             p.rect(sx + 2.0, sy + 2.0, w - 4.0, 12.0, "#d6ceb8");

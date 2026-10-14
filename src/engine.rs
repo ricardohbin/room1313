@@ -435,6 +435,61 @@ impl Engine {
     pub fn history(&self) -> &[(String, Side)] {
         &self.history
     }
+
+    /// The game so far as one line of text, for `restore`: the card on the table,
+    /// then the random state, round, attributes, inventory, the rounds each item
+    /// was gained, the spent cards and the choices made. Card ids are plain
+    /// `a-z_`, so `;` and `,` are safe separators.
+    pub fn save(&self) -> String {
+        let list = |items: Vec<String>| items.join(",");
+        let spent = self.scenes.iter().zip(&self.spent).filter(|(_, &s)| s).map(|(s, _)| s.id.clone());
+        let history = self.history.iter().map(|(id, side)| format!("{id}:{}", if *side == Side::Left { 'L' } else { 'R' }));
+        [
+            "1".to_string(),
+            self.current().id.clone(),
+            self.rng.0.to_string(),
+            self.round.to_string(),
+            list(Stat::ALL.iter().map(|&s| self.stats.get(s).to_string()).collect()),
+            self.inventory.0.to_string(),
+            list(self.held_since.iter().map(u32::to_string).collect()),
+            list(spent.collect()),
+            list(history.collect()),
+        ]
+        .join(";")
+    }
+
+    /// The game `save` described, on the given deck. `None` if the text is damaged
+    /// or from a deck that has since changed (a missing card, say).
+    pub fn restore(scenes: Vec<Scene>, text: &str) -> Option<Self> {
+        let mut parts = text.split(';');
+        if parts.next()? != "1" {
+            return None;
+        }
+        let current = parts.next()?;
+        let mut engine = Self::new(scenes, current, Inventory::default(), 0).ok()?;
+        engine.rng = Rng(parts.next()?.parse().ok().filter(|&n| n != 0)?);
+        engine.round = parts.next()?.parse().ok()?;
+        let stats: Vec<i32> = parts.next()?.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+        let [r, s, a] = stats[..] else { return None };
+        engine.stats = Stats::new(r, s, a);
+        engine.inventory = Inventory(parts.next()?.parse().ok()?);
+        let held: Vec<u32> = parts.next()?.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+        engine.held_since = held.try_into().ok()?;
+        for id in parts.next()?.split(',').filter(|id| !id.is_empty()) {
+            let i = engine.scenes.iter().position(|s| s.id == id)?;
+            engine.spent[i] = true;
+        }
+        for entry in parts.next()?.split(',').filter(|e| !e.is_empty()) {
+            let (id, side) = entry.split_once(':')?;
+            let side = match side {
+                "L" => Side::Left,
+                "R" => Side::Right,
+                _ => return None,
+            };
+            engine.history.push((id.to_string(), side));
+        }
+        Some(engine)
+    }
 }
 
 #[cfg(test)]
@@ -611,6 +666,24 @@ mod tests {
             (0..20).map(|_| e.choose(Side::Left).id.clone()).collect::<Vec<_>>()
         };
         assert_eq!(play(3), play(3));
+    }
+
+    #[test]
+    fn a_saved_game_continues_exactly_where_it_stopped() {
+        use crate::cards::{deck, START, START_ITEMS};
+        let mut a = Engine::new(deck(), START, Inventory::of(START_ITEMS), 11).unwrap();
+        for i in 0..25 {
+            a.choose(if i % 3 == 0 { Side::Left } else { Side::Right });
+        }
+        let mut b = Engine::restore(deck(), &a.save()).expect("restores");
+        assert_eq!(b.save(), a.save());
+        for _ in 0..40 {
+            assert_eq!(a.choose(Side::Right).id, b.choose(Side::Right).id);
+            assert_eq!((a.stats(), a.inventory()), (b.stats(), b.inventory()));
+        }
+        assert!(Engine::restore(deck(), "").is_none());
+        assert!(Engine::restore(deck(), "1;nowhere;1;0;50,50,50;0;;;").is_none());
+        assert!(Engine::restore(deck(), &a.save()[..20]).is_none());
     }
 
     #[test]

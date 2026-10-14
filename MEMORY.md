@@ -24,8 +24,8 @@ dragging. That change hasn't been rebuilt or retested.
 
 ## Title screen (added 2026-10-13, draft)
 
-`src/splash.rs` runs before the game: a "press any key" gate (browsers only allow
-audio after a user gesture), then a black hold with a rumble, then ROOM 1313
+`src/language.rs` comes first: pick a language (flag + native name; it doubles
+as the user gesture browsers want before audio), then `src/splash.rs`: a black hold with a rumble, then ROOM 1313
 flickers in on a boom, then the menu (New Game / Continue (disabled) / Exit)
 fades in over the looping theme. New Game fades to black and calls `view::mount`.
 Exit can't close a tab, so it whispers "There is no exit."
@@ -141,6 +141,18 @@ mean Arousal delta per choice near 0: Arousal-high is what kills most runs. Dev 
 - Browser testing approach that worked: headless Chrome with
   `--remote-debugging-port`, driven over CDP from a Node script, using
   `Input.dispatchMouseEvent` to simulate drags.
+
+## Languages (added 2026-10-13)
+
+US English and Brazilian Portuguese. `src/i18n.rs`: English text is the key,
+`i18n/pt_br.rs` is the table, `t()` translates at display time (view, cinematic
+captions, splash, pixel-art signs/documents), so the deck and tests stay English.
+Tests fail if any shown text lacks a translation or a table entry is stale, and
+check that pixel-font text fits. The 3×5 pixel font drops accents (`art::fold`);
+the Room 13 web font got accented capitals (ÁÀÂÃÄ ÉÊ… Ç Ñ) composed in
+`design/font-draft/glyphs.py` (rebuild: `.venv` with fonttools, skia-pathops, brotli).
+New player-visible text must go through `t()` and get a pt-BR entry.
+Choice is saved in localStorage `room1313.lang`, else browser language.
 
 ## Next steps
 

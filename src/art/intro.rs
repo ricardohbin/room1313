@@ -3,6 +3,7 @@
 use std::f64::consts::TAU;
 
 use super::*;
+use crate::i18n::t as tr;
 
 /// Seconds into the city shot when lightning strikes (the thunder follows).
 pub const LIGHTNING: [f64; 2] = [2.6, 8.4];
@@ -635,7 +636,7 @@ fn office(p: &Pen, feed: &Pen, t: f64) {
     p.rect(140.0, 100.0, 46.0, 18.0, "#6a5838");
     p.rect(140.0, 117.0, 46.0, 1.0, "#3a2f1d");
     p.rect(176.0, 98.0, 9.0, 12.0, "#3a3a38");
-    p.text("CASE", 145.0, 103.0, "#2a2216");
+    p.text(tr(CASE), 145.0, 103.0, "#2a2216");
     p.text("358", 145.0, 110.0, "#a02a20");
     p.rect(64.0, 90.0, 7.0, 8.0, "#2c2724");
     p.rect(71.0, 92.0, 2.0, 4.0, "#2c2724");
@@ -689,3 +690,6 @@ fn office(p: &Pen, feed: &Pen, t: f64) {
     }
 }
 
+
+/// The label on the case folder.
+pub(super) const CASE: &str = "CASE";

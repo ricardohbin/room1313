@@ -22,7 +22,7 @@ from fontTools.pens.t2CharStringPen import T2CharStringPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
 
-from glyphs import G, SPACE
+from glyphs import ACCENTED, G, SPACE
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent.parent
@@ -40,7 +40,7 @@ KERN_MIN, KERN_CLAMP = 15, (-200, 80)
 
 
 def glyph_name(ch):
-    return ch if ch.isalpha() else UV2AGL[ord(ch)]
+    return ch if ch.isascii() and ch.isalpha() else UV2AGL[ord(ch)]
 
 
 def to_path(parts):
@@ -165,7 +165,15 @@ def build():
     for alias, ch in ALIASES.items():
         cmap[ord(alias)] = glyph_name(ch)
 
-    target, pairs = kerning(outlines, [glyph_name(ch) for ch in G])
+    target, pairs = kerning(outlines, [glyph_name(ch) for ch in G if ch not in ACCENTED])
+    # Accented letters kern like their base letter (the marks sit above everything).
+    variants = {}
+    for ch, base in ACCENTED.items():
+        variants.setdefault(glyph_name(base), []).append(glyph_name(ch))
+    for (a, b), k in list(pairs.items()):
+        for a2 in [a] + variants.get(a, []):
+            for b2 in [b] + variants.get(b, []):
+                pairs[(a2, b2)] = k
 
     fb = FontBuilder(1000, isTTF=False)
     fb.setupGlyphOrder(order)

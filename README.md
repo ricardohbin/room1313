@@ -55,6 +55,9 @@ make run     # build, then serve at http://localhost:8765
 Drag the card with the mouse or a finger. In cutscenes, click or press Space
 to move on, and Escape to skip. Headphones recommended.
 
+Plays in **English** and **Brazilian Portuguese** (pick on the first screen).
+To translate, add a table in `src/i18n/`: `cargo test` lists any missing text.
+
 `make help` lists everything else (`dev`, `test`, `lint`, `check`, `release`,
 `clean`…). Use another port with `make serve PORT=9000`.
 

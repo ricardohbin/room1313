@@ -11,6 +11,7 @@ use web_sys::{Document, EventTarget, HtmlElement, KeyboardEvent};
 
 use crate::art::{Art, Shot};
 use crate::audio::Music;
+use crate::i18n::t;
 use crate::view::{el, window};
 
 const CHAR_MS: f64 = 38.0;
@@ -22,6 +23,12 @@ const FINAL_HOLD_MS: f64 = 5500.0;
 const FADE_MS: f64 = 900.0;
 /// Fade out of the last shot.
 const END_FADE_MS: f64 = 1800.0;
+const HINT: &str = "click to continue · esc to skip";
+
+#[cfg(test)]
+pub(crate) fn texts() -> [&'static str; 1] {
+    [HINT]
+}
 
 /// A whole cinematic. The last line of the last scene is the hook: it's
 /// styled apart and lands on a boom.
@@ -29,6 +36,14 @@ pub struct Film {
     pub scenes: &'static [Scene],
     /// Starts the music, once, when the film begins.
     pub score: fn(&mut Music),
+}
+
+impl Film {
+    /// Every caption line, in English.
+    #[cfg(test)]
+    pub fn lines(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.scenes.iter().flat_map(|s| s.lines.iter().copied())
+    }
 }
 
 pub struct Scene {
@@ -86,6 +101,8 @@ struct Player {
     /// (typed, not yet typed) spans per caption line; the untyped part is
     /// invisible but keeps the layout from shifting while typing.
     lines: Vec<(HtmlElement, HtmlElement)>,
+    /// The current shot's caption, in the player's language.
+    text: Vec<&'static str>,
     music: Option<Music>,
     scene: usize,
     /// Timestamp of the latest frame, and of the current shot's first frame.
@@ -129,7 +146,7 @@ fn build(film: &'static Film, root_id: &str) -> Result<Shared, JsValue> {
     canvas.set_class_name("cine-screen");
     let caption = el(&doc, "div", "cine-caption")?;
     let hint = el(&doc, "p", "cine-hint")?;
-    hint.set_text_content(Some("click to continue · esc to skip"));
+    hint.set_text_content(Some(t(HINT)));
     root.append_child(&canvas)?;
     root.append_child(&caption)?;
     root.append_child(&hint)?;
@@ -150,6 +167,7 @@ fn build(film: &'static Film, root_id: &str) -> Result<Shared, JsValue> {
         root: root.clone(),
         caption,
         lines: Vec::new(),
+        text: Vec::new(),
         music,
         scene: 0,
         now: 0.0,
@@ -195,8 +213,9 @@ impl Player {
         self.caption.class_list().remove_1("hide")?;
         self.lines.clear();
         let scene = &self.film.scenes[i];
-        for (n, text) in scene.lines.iter().enumerate() {
-            let accent = i == self.film.scenes.len() - 1 && n == scene.lines.len() - 1;
+        self.text = scene.lines.iter().map(|&line| t(line)).collect();
+        for (n, text) in self.text.iter().enumerate() {
+            let accent = i == self.film.scenes.len() - 1 && n == self.text.len() - 1;
             let line = el(&self.doc, "p", if accent { "cine-line accent" } else { "cine-line" })?;
             let typed = el(&self.doc, "span", "")?;
             let rest = el(&self.doc, "span", "rest")?;
@@ -254,7 +273,7 @@ impl Player {
             None => {
                 let last = self.scene == self.film.scenes.len() - 1;
                 let hold = if last { FINAL_HOLD_MS } else { HOLD_MS };
-                if clock > caption_ms(scene.lines) + hold {
+                if clock > caption_ms(&self.text) + hold {
                     self.leave(if last { Leave::End } else { Leave::Next });
                 }
             }
@@ -271,10 +290,9 @@ impl Player {
     }
 
     fn type_caption(&mut self, clock: f64) {
-        let scene = &self.film.scenes[self.scene];
-        let mut counts = Vec::with_capacity(scene.lines.len());
+        let mut counts = Vec::with_capacity(self.text.len());
         let mut start = 0.0;
-        for line in scene.lines {
+        for line in &self.text {
             let n = line.chars().count();
             counts.push((((clock - start) / CHAR_MS).floor().max(0.0) as usize).min(n));
             start += n as f64 * CHAR_MS + LINE_PAUSE_MS;
@@ -283,7 +301,7 @@ impl Player {
         if total == self.shown {
             return;
         }
-        for ((typed, rest), (line, &k)) in self.lines.iter().zip(scene.lines.iter().zip(&counts)) {
+        for ((typed, rest), (line, &k)) in self.lines.iter().zip(self.text.iter().zip(&counts)) {
             let split = line.char_indices().nth(k).map_or(line.len(), |(b, _)| b);
             typed.set_text_content(Some(&line[..split]));
             rest.set_text_content(Some(&line[split..]));
@@ -304,7 +322,7 @@ impl Player {
         if self.leaving.is_some() || self.began.is_none() {
             return;
         }
-        let behind = caption_ms(self.film.scenes[self.scene].lines) - self.caption_clock();
+        let behind = caption_ms(&self.text) - self.caption_clock();
         if behind > 0.0 {
             self.hurry += behind;
         } else if self.scene == self.film.scenes.len() - 1 {

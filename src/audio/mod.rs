@@ -5,8 +5,10 @@
 
 mod foley;
 mod score;
+mod volume;
 
 pub use score::Score;
+pub use volume::{set_volume, volume, MAX as MAX_VOLUME};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -55,7 +57,7 @@ impl Music {
     pub fn new() -> Result<Self, JsValue> {
         let ctx = AudioContext::new()?;
         let master = ctx.create_gain()?;
-        master.gain().set_value(0.8);
+        volume::track(&master);
         master.connect_with_audio_node(&ctx.destination())?;
 
         let echo = ctx.create_gain()?;

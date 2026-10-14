@@ -6,11 +6,14 @@ use std::rc::Rc;
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{Document, EventTarget, HtmlElement, PointerEvent};
+use web_sys::{Document, EventTarget, HtmlElement, KeyboardEvent, PointerEvent};
 
 use crate::art::{item_icon, stat_icon, Portrait};
 use crate::cards::Item;
+use crate::i18n::t;
 use crate::engine::{Choice, Condition, Engine, Inventory, Outcome, Side, Stat, Stats, STAT_START};
+use crate::options;
+use crate::store;
 use crate::swipe::{Drag, SwipeConfig};
 
 /// Must match the `.card` transition duration in style.css.
@@ -38,6 +41,8 @@ struct Ui {
     hint_label: HtmlElement,
     hint_items: HtmlElement,
     speaker: HtmlElement,
+    /// Top-right button to the options screen.
+    gear: HtmlElement,
     gauges: Vec<Gauge>,
     /// One slot per item, shown while you hold it.
     slots: Vec<(Item, HtmlElement)>,
@@ -84,6 +89,14 @@ pub fn mount(engine: Engine, root_id: &str, on_end: impl FnOnce(Outcome) + 'stat
     listen(&card, "pointermove", &app, on_pointer_move)?;
     listen(&card, "pointerup", &app, on_pointer_up)?;
     listen(&card, "pointercancel", &app, on_pointer_up)?;
+    let gear: EventTarget = app.borrow().ui.gear.clone().into();
+    listen(&gear, "click", &app, |app, _: web_sys::Event| open_options(app))?;
+    let document: EventTarget = document.into();
+    listen(&document, "keydown", &app, |app, ev: KeyboardEvent| {
+        if ev.key() == "Escape" && !ev.repeat() {
+            open_options(app);
+        }
+    })?;
     Ok(())
 }
 
@@ -94,7 +107,7 @@ impl Gauge {
         let icon = stat_icon(doc, stat)?;
         icon.set_class_name("gauge-icon");
         let name = el(doc, "span", "gauge-name")?;
-        name.set_text_content(Some(stat.name()));
+        name.set_text_content(Some(t(stat.name())));
         let delta = el(doc, "span", "gauge-delta")?;
         head.append_child(&icon)?;
         head.append_child(&name)?;
@@ -138,11 +151,11 @@ impl Ui {
         let mut slots = Vec::with_capacity(Item::ALL.len());
         for item in Item::ALL {
             let slot = el(doc, "div", "slot")?;
-            slot.set_title(item.name());
+            slot.set_title(t(item.name()));
             let icon = item_icon(doc, item)?;
             icon.set_class_name("slot-icon");
             let name = el(doc, "span", "slot-name")?;
-            name.set_text_content(Some(item.name()));
+            name.set_text_content(Some(t(item.name())));
             slot.append_child(&icon)?;
             slot.append_child(&name)?;
             inventory.append_child(&slot)?;
@@ -161,19 +174,24 @@ impl Ui {
         game.append_child(&inventory)?;
         let grain = el(doc, "div", "cine-grain")?;
         game.append_child(&grain)?;
+        let gear = el(doc, "button", "gear")?;
+        gear.set_title(t(options::TITLE));
+        gear.set_attribute("aria-label", t(options::TITLE))?;
+        gear.set_inner_html("<i></i><i></i><i></i>");
+        game.append_child(&gear)?;
         root.append_child(&game)?;
 
-        Ok(Self { text, card, portrait, role, stamp, hint, hint_label, hint_items, speaker, gauges, slots })
+        Ok(Self { text, card, portrait, role, stamp, hint, hint_label, hint_items, speaker, gear, gauges, slots })
     }
 }
 
 impl App {
     fn render_scene(&self) {
         let scene = self.engine.current();
-        self.ui.text.set_text_content(Some(&scene.text));
-        self.ui.speaker.set_text_content(Some(scene.who.name()));
-        self.ui.role.set_text_content(Some(scene.who.role()));
-        self.ui.stamp.set_text_content(Some(scene.arrival.label()));
+        self.ui.text.set_text_content(Some(t(&scene.text)));
+        self.ui.speaker.set_text_content(Some(t(scene.who.name())));
+        self.ui.role.set_text_content(Some(t(scene.who.role())));
+        self.ui.stamp.set_text_content(Some(t(scene.arrival.label())));
         self.ui.portrait.paint(scene.who);
         self.set_hint(None);
     }
@@ -232,7 +250,7 @@ impl App {
         match leaning {
             Some((side, strength)) => {
                 let choice = self.engine.current().choice(side);
-                self.ui.hint_label.set_text_content(Some(&choice.label));
+                self.ui.hint_label.set_text_content(Some(t(&choice.label)));
                 self.ui.hint_items.set_text_content(Some(&item_changes(choice, self.engine.inventory())));
                 let _ = classes.add_1(side_class(side));
                 set_style(hint, "opacity", &strength.to_string());
@@ -258,8 +276,8 @@ impl App {
 
 /// "+ Key to 1313, - The e-reader": what a choice would actually change in your hands.
 fn item_changes(choice: &Choice, inv: Inventory) -> String {
-    let gained = choice.gives.iter().filter(|&&i| !inv.has(i)).map(|i| format!("+ {}", i.name()));
-    let lost = choice.takes.iter().filter(|&&i| inv.has(i)).map(|i| format!("- {}", i.name()));
+    let gained = choice.gives.iter().filter(|&&i| !inv.has(i)).map(|i| format!("+ {}", t(i.name())));
+    let lost = choice.takes.iter().filter(|&&i| inv.has(i)).map(|i| format!("- {}", t(i.name())));
     gained.chain(lost).collect::<Vec<_>>().join(", ")
 }
 
@@ -273,6 +291,13 @@ fn arrows(delta: i32) -> String {
     };
     let dir = if delta > 0 { "up" } else { "down" };
     format!("<i class=\"{dir}\"></i>").repeat(n)
+}
+
+/// Pauses on the options screen, unless the game is already over.
+fn open_options(app: &Shared) {
+    if app.borrow().engine.outcome().is_none() {
+        options::open(true);
+    }
 }
 
 fn on_pointer_down(app: &Shared, ev: PointerEvent) {
@@ -344,7 +369,13 @@ fn commit(app: &Shared, side: Side) {
                 restart_animation(slot, "new");
             }
         }
-        a.engine.outcome()
+        // A game saves on every card; a finished one leaves nothing to continue.
+        let outcome = a.engine.outcome();
+        match outcome {
+            Some(_) => store::clear_game(),
+            None => store::save_game(&a.engine.save()),
+        }
+        outcome
     };
 
     if let Some(outcome) = outcome {

@@ -6,6 +6,7 @@
 //! shots share; `intro` and `endings` hold the shots themselves.
 
 mod endings;
+mod flags;
 mod intro;
 mod icons;
 mod portraits;
@@ -17,6 +18,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Document, HtmlCanvasElement};
 
 pub use endings::*;
+pub use flags::flag;
 pub use intro::{spark, LIGHTNING};
 pub use icons::{item_icon, stat_icon};
 pub use portraits::Portrait;
@@ -178,7 +180,7 @@ impl Pen {
     fn text_at_scale(&self, s: &str, x: f64, y: f64, scale: f64, color: &str) {
         self.ink(color);
         for (i, ch) in s.chars().enumerate() {
-            let Some(rows) = glyph(ch) else { continue };
+            let Some(rows) = glyph(fold(ch)) else { continue };
             for (dy, row) in rows.iter().enumerate() {
                 for (dx, b) in row.bytes().enumerate() {
                     if b == b'#' {
@@ -206,6 +208,20 @@ impl Pen {
         let _ = g.add_color_stop(1.0, &format!("rgba(0,0,0,{dark})"));
         self.ctx.set_fill_style_canvas_gradient(&g);
         self.ctx.fill_rect(0.0, 0.0, W, H);
+    }
+}
+
+/// 3×5 is too small for accents: accented capitals are drawn without them.
+fn fold(ch: char) -> char {
+    match ch {
+        'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'A',
+        'É' | 'È' | 'Ê' | 'Ë' => 'E',
+        'Í' | 'Ì' | 'Î' | 'Ï' => 'I',
+        'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'O',
+        'Ú' | 'Ù' | 'Û' | 'Ü' => 'U',
+        'Ç' => 'C',
+        'Ñ' => 'N',
+        _ => ch,
     }
 }
 
@@ -464,3 +480,45 @@ fn curl(p: &Pen, x: f64, y: f64, dir: f64, up: f64, s: f64, ink: &str) {
     }
 }
 
+
+/// Every piece of English text painted in the shots, for the translation tests.
+#[cfg(test)]
+pub(crate) fn texts() -> Vec<&'static str> {
+    let mut all = vec![endings::CAPTAIN, endings::POLICE, intro::CASE];
+    for doc in Doc::ALL {
+        let (masthead, headline, stamp) = doc.text();
+        all.extend([masthead, headline]);
+        all.extend(stamp);
+    }
+    all
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Lang;
+
+    /// Every sign and document fits its spot and can be drawn, in every language.
+    #[test]
+    fn painted_text_fits_in_every_language() {
+        let fits = |s: &str, max: usize| s.chars().count() <= max && s.chars().all(|c| c == ' ' || glyph(fold(c)).is_some());
+        for lang in Lang::ALL {
+            for sign in [endings::CAPTAIN, endings::POLICE] {
+                assert!(fits(lang.tr(sign), 7), "{lang:?}: {:?}", lang.tr(sign));
+            }
+            assert!(fits(lang.tr(intro::CASE), 4), "{lang:?}: {:?}", lang.tr(intro::CASE));
+            for doc in Doc::ALL {
+                let (masthead, headline, stamp) = doc.text();
+                assert!(fits(lang.tr(masthead), 27), "{lang:?}: {:?}", lang.tr(masthead));
+                let lines: Vec<_> = lang.tr(headline).lines().collect();
+                assert_eq!(lines.len(), 2, "{lang:?}: {headline:?}");
+                for line in lines {
+                    assert!(fits(line, 13), "{lang:?}: {line:?}");
+                }
+                if let Some(stamp) = stamp {
+                    assert!(fits(lang.tr(stamp), 12), "{lang:?}: {:?}", lang.tr(stamp));
+                }
+            }
+        }
+    }
+}

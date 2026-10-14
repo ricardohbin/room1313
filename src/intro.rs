@@ -82,6 +82,11 @@ const SCENES: [Scene; 6] = [
     }),
 ];
 
+#[cfg(test)]
+pub(crate) fn texts() -> impl Iterator<Item = &'static str> {
+    INTRO.lines()
+}
+
 /// Plays the intro, then calls `on_done`.
 pub fn play(root_id: &str, on_done: impl FnOnce() + 'static) {
     cinematic::play(&INTRO, root_id, on_done);

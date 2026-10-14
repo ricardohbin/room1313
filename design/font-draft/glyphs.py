@@ -8,7 +8,9 @@ Build the font with `.venv/bin/python build_font.py`.
 """
 
 import math
+import unicodedata
 
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
@@ -560,6 +562,58 @@ G["@"] = (840, [
     *nib_stroke(spline([(592, 360), (598, 560), (626, 640), (676, 668)] + AT_SPIRAL[1:]), thin=30, thick=84),
     eye(410, 520, 300, 190),
 ])
+
+
+# Accented capitals ----------------------------------------------------------
+# Built from the base letter plus a mark centred over its ink. Marks sit in
+# MARK_TOP..MARK_BOTTOM, above the tallest cap (the apex of A, y=70).
+
+MARK_BOTTOM, MARK_TOP = 50, -60
+
+
+def ink_bounds(parts):
+    pen = BoundsPen(None)
+    for d, _ in parts:
+        parse_path(d, pen)
+    return pen.bounds  # xmin, ymin, xmax, ymax in SVG coords
+
+
+def mark(name, cx):
+    b, t = MARK_BOTTOM, MARK_TOP
+    h = b - t
+    if name == "acute":  # a slanted blade, heavy at the top
+        return [(poly((cx - 46, b), (cx + 22, t), (cx + 74, t + 22), (cx - 24, b + 4)), {})]
+    if name == "grave":
+        return [(poly((cx + 46, b), (cx - 22, t), (cx - 74, t + 22), (cx + 24, b + 4)), {})]
+    if name == "circumflex":  # a chevron, like the A's apex
+        return [(poly((cx - 96, b), (cx - 14, t), (cx + 14, t), (cx + 96, b), (cx + 58, b),
+                      (cx, t + h * 0.48), (cx - 58, b)), {})]
+    if name == "tilde":  # a pen-drawn wave
+        return nib_stroke(spline([(cx - 100, b - 16), (cx - 52, t + 18), (cx + 2, b - 34),
+                                  (cx + 54, b - 6), (cx + 100, t + 14)], steps=8), thin=24, thick=58)
+    if name == "dieresis":  # two drops of blood
+        return [blood_drop(cx - 62, b, h, 64), blood_drop(cx + 62, b, h, 64)]
+    if name == "cedilla":  # a little hook under the letter, like the comma
+        comma = poly((150, 736), (206, 792), (166, 934), (118, 946), (138, 852), (94, 792))
+        return [(transform(comma, (0.8, 0, 0, 0.8, cx - 132, 850 - 0.8 * 736 - 14)), {})]
+    raise ValueError(name)
+
+
+ACCENTS = {
+    "acute": "AEIOU", "grave": "AEIOU", "circumflex": "AEIOU", "tilde": "AON",
+    "dieresis": "AEIOU", "cedilla": "C",
+}
+
+ACCENTED = {}  # accented letter -> base letter, for kerning
+for _name, _bases in ACCENTS.items():
+    for _base in _bases:
+        _ch = unicodedata.normalize("NFC", _base + {
+            "acute": "́", "grave": "̀", "circumflex": "̂",
+            "tilde": "̃", "dieresis": "̈", "cedilla": "̧"}[_name])
+        _adv, _parts = G[_base]
+        _x0, _, _x1, _ = ink_bounds(_parts)
+        G[_ch] = (_adv, _parts + mark(_name, (_x0 + _x1) / 2))
+        ACCENTED[_ch] = _base
 
 
 # Advance width of the space glyph (used by build_font.py).

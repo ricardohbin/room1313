@@ -4,6 +4,8 @@
 //! - `cards`:     the cast and the deck.
 //! - `swipe`:     pure drag-gesture math (offset, tilt, decision).
 //! - `view`:      DOM binding via web-sys; wires pointer events to the engine.
+//! - `i18n`:      languages: English text -> translation, looked up when shown.
+//! - `language`:  the first screen, where you pick a language.
 //! - `splash`:    title screen (intro animation + menu) shown before the game.
 //! - `cinematic`: player for pixel-art cutscenes with typed captions.
 //! - `intro`:     the cinematic between the title screen and the first card.
@@ -17,8 +19,12 @@ pub mod cards;
 mod cinematic;
 pub mod endings;
 pub mod engine;
+pub mod i18n;
 mod intro;
+mod language;
+mod options;
 mod splash;
+mod store;
 pub mod swipe;
 mod view;
 
@@ -26,6 +32,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::endings::Ending;
 use crate::engine::{Engine, Inventory, Outcome};
+use crate::splash::Start;
 use crate::view::window;
 
 #[wasm_bindgen(start)]
@@ -47,11 +54,27 @@ pub fn start() -> Result<(), JsValue> {
     };
     let engine = Engine::new(deck, &start, items, seed).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let skip_intro = hash == "#cards" || first.is_some();
-    splash::mount("app", move || match preview {
-        _ if hash == "#credits" => endings::credits("app", back_to_title),
-        Some(ending) => endings::play(ending, "app", back_to_title),
-        None if skip_intro => deal(engine),
-        None => intro::play("app", move || deal(engine)),
+    language::choose("app", move || {
+        let mounted = splash::mount("app", move |start| {
+            // Continue picks up the saved game; if it can't be read, it's a new game.
+            let saved = (start == Start::Continue)
+                .then(|| store::load_game().and_then(|text| Engine::restore(cards::deck(), &text)))
+                .flatten();
+            match preview {
+                _ if hash == "#credits" => endings::credits("app", back_to_title),
+                Some(ending) => endings::play(ending, "app", back_to_title),
+                None if saved.is_some() => deal(saved.unwrap()),
+                None if skip_intro => deal(engine),
+                None => {
+                    // A new game overwrites the old save right away.
+                    store::save_game(&engine.save());
+                    intro::play("app", move || deal(engine))
+                }
+            }
+        });
+        if let Err(e) = mounted {
+            web_sys::console::error_1(&e);
+        }
     })
 }
 
